@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Product, ProductCategory, Order, DeliveryFee } from './types';
 import { ALGERIAN_WILAYAS, MOCK_PRODUCTS } from './constants';
+
+// Helper function to convert a file to a Base64 string
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 
 // Custom hook for using localStorage
 function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
@@ -69,9 +80,10 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
     </a>
 );
 
-const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onClose: () => void; onPlaceOrder: (order: any) => void }> = ({ product, deliveryFees, onClose, onPlaceOrder }) => {
+const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onClose: () => void; onPlaceOrder: (order: any, setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>) => void }> = ({ product, deliveryFees, onClose, onPlaceOrder }) => {
     const [formData, setFormData] = useState({ name: '', phone: '', wilayaId: ALGERIAN_WILAYAS[0].id, municipality: '', address: '' });
     const [deliveryFee, setDeliveryFee] = useState(deliveryFees.find(df => df.wilayaId === ALGERIAN_WILAYAS[0].id)?.fee ?? 0);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleWilayaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const wilayaId = parseInt(e.target.value);
@@ -82,6 +94,7 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSubmitting(true);
         const wilaya = ALGERIAN_WILAYAS.find(w => w.id === formData.wilayaId)?.name || '';
         onPlaceOrder({
             product,
@@ -92,7 +105,7 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
             address: formData.address,
             deliveryFee,
             totalPrice: product.price + deliveryFee
-        });
+        }, setIsSubmitting);
     };
 
     return (
@@ -116,7 +129,9 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
                         </select>
                         <input type="text" placeholder="البلدية" value={formData.municipality} onChange={e => setFormData({ ...formData, municipality: e.target.value })} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
                         <input type="text" placeholder="العنوان الكامل" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-md hover:bg-indigo-700 transition-colors">تأكيد الطلب</button>
+                        <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-md hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed">
+                          {isSubmitting ? 'جاري الإرسال...' : 'تأكيد الطلب'}
+                        </button>
                     </form>
                 </div>
             </div>
@@ -163,10 +178,19 @@ const ProductPage: React.FC<{ product: Product; onOrderNow: (product: Product) =
               <div>
                   <img src={mainImage} alt={product.name} className="w-full h-auto rounded-lg object-cover mb-4 max-h-[500px] shadow-md" />
                   <div className="flex space-x-2 rtl:space-x-reverse">
-                      {product.images.map(img => (
-                          <img key={img} src={img} onClick={() => setMainImage(img)} className={`w-20 h-20 rounded-md object-cover cursor-pointer border-2 transition-all ${mainImage === img ? 'border-indigo-500 scale-105' : 'border-transparent opacity-70 hover:opacity-100'}`} alt="thumbnail" />
+                      {product.images.map((img, index) => (
+                          <img key={index} src={img} onClick={() => setMainImage(img)} className={`w-20 h-20 rounded-md object-cover cursor-pointer border-2 transition-all ${mainImage === img ? 'border-indigo-500 scale-105' : 'border-transparent opacity-70 hover:opacity-100'}`} alt="thumbnail" />
                       ))}
                   </div>
+                  {product.videoUrl && (
+                    <div className="mt-6">
+                      <h3 className="text-lg font-semibold mb-2">فيديو المنتج:</h3>
+                      <video controls className="w-full rounded-lg shadow-md">
+                        <source src={product.videoUrl} />
+                        متصفحك لا يدعم عرض الفيديو.
+                      </video>
+                    </div>
+                  )}
               </div>
               <div className="flex flex-col justify-center">
                   <h2 className="text-3xl font-bold text-gray-900 mb-4">{product.name}</h2>
@@ -243,7 +267,7 @@ const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     );
 };
 
-const AdminDashboard: React.FC<{notificationEmail: string}> = ({notificationEmail}) => (
+const AdminDashboard: React.FC<{formspreeUrl: string}> = ({formspreeUrl}) => (
     <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-xl font-bold text-gray-800 mb-4">مرحباً بك في لوحة التحكم</h3>
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
@@ -252,17 +276,17 @@ const AdminDashboard: React.FC<{notificationEmail: string}> = ({notificationEmai
                 <div>
                     <p className="font-bold">نظام استلام الطلبات</p>
                     <p className="text-sm">
-                        هذا المتجر يعمل بدون قاعدة بيانات مركزية. لذلك، الطريقة الوحيدة والمضمونة لاستلام طلبات زبائنك هي عبر بريدك الإلكتروني.
+                        هذا المتجر يعمل بنظام إرسال تلقائي للطلبات. الطريقة الوحيدة والمضمونة لاستلام طلبات زبائنك هي عبر بريدك الإلكتروني من خلال خدمة Formspree.
                     </p>
-                    {notificationEmail ? (
+                    {formspreeUrl ? (
                         <p className="text-sm mt-2">
-                            جميع الطلبات الجديدة سيتم إرسالها إلى: <strong className="font-mono">{notificationEmail}</strong>.
+                            جميع الطلبات الجديدة سيتم إرسالها إلى بريدك المرتبط بحساب Formspree.
                             <br/>
                             الرجاء تفقد بريدك الإلكتروني بانتظام لمتابعة الطلبات.
                         </p>
                     ) : (
                          <p className="text-sm mt-2 text-red-600 font-semibold">
-                            الرجاء الذهاب إلى "إعدادات الإشعارات" وتحديد بريدك الإلكتروني لبدء استلام الطلبات.
+                            الرجاء الذهاب إلى "إعدادات الإشعارات" ووضع رابط Formspree الخاص بك لبدء استلام الطلبات.
                         </p>
                     )}
                 </div>
@@ -272,34 +296,77 @@ const AdminDashboard: React.FC<{notificationEmail: string}> = ({notificationEmai
 );
 
 const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<React.SetStateAction<Product[]>>}> = ({products, setProducts}) => {
-    const initialFormState = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']};
-    const [form, setForm] = useState<Omit<Product, 'id'> & {id: number | null}>(initialFormState);
+    const initialFormState: Omit<Product, 'id'> & {id: number | null} = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: [], videoUrl: ''};
+    const [form, setForm] = useState(initialFormState);
+    const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+    const [videoPreview, setVideoPreview] = useState<string | undefined>('');
+    
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const videoInputRef = useRef<HTMLInputElement>(null);
+
     const isEditing = form.id !== null;
 
-    const handleSave = (e: React.FormEvent) => {
+    useEffect(() => {
+      setImagePreviews(form.images);
+      setVideoPreview(form.videoUrl);
+    }, [form]);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, fileType: 'image' | 'video') => {
+      if (!e.target.files) return;
+
+      if (fileType === 'image') {
+        const files = Array.from(e.target.files);
+        const base64Images = await Promise.all(files.map(fileToBase64));
+        setForm(prev => ({ ...prev, images: [...prev.images, ...base64Images] }));
+      } else {
+        const file = e.target.files[0];
+        if (file) {
+          const base64Video = await fileToBase64(file);
+          setForm(prev => ({ ...prev, videoUrl: base64Video }));
+        }
+      }
+    };
+    
+    const removeImage = (index: number) => {
+      setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index)}));
+    }
+    
+    const removeVideo = () => {
+      setForm(prev => ({...prev, videoUrl: ''}));
+      if (videoInputRef.current) videoInputRef.current.value = '';
+    }
+
+    const handleSave = async (e: React.FormEvent) => {
       e.preventDefault();
-      const images = form.images[0].split(',').map(s => s.trim()).filter(Boolean);
-       if (images.length === 0) {
-        alert("الرجاء إضافة رابط صورة واحد على الأقل.");
+      if (form.images.length === 0) {
+        alert("الرجاء رفع صورة واحدة على الأقل للمنتج.");
         return;
       }
+
       if (form.id) { // Editing
-        setProducts(products.map(p => p.id === form.id ? {...form, id: form.id, images} : p));
+        setProducts(products.map(p => p.id === form.id ? { ...form, id: form.id } as Product : p));
       } else { // Adding
-        setProducts([...products, {...form, id: new Date().getTime(), images}]);
+        setProducts([...products, { ...form, id: new Date().getTime() } as Product]);
       }
-      setForm(initialFormState); // Reset form
+      resetForm();
     }
+    
     const handleEdit = (product: Product) => {
-      setForm({...product, images: [product.images.join(', ')]});
+      setForm(product);
       window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to form
     }
+    
     const handleDelete = (id: number) => {
       if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
         setProducts(products.filter(p => p.id !== id));
       }
     };
-    const resetForm = () => setForm(initialFormState);
+    
+    const resetForm = () => {
+        setForm(initialFormState);
+        if(imageInputRef.current) imageInputRef.current.value = '';
+        if(videoInputRef.current) videoInputRef.current.value = '';
+    }
 
     return <div className="space-y-8">
         <div className="bg-white p-6 rounded-lg shadow-md">
@@ -313,11 +380,33 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
                       {Object.values(ProductCategory).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
+                
+                {/* Image Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">روابط الصور</label>
-                  <input value={form.images[0]} onChange={e => setForm({...form, images: [e.target.value]})} placeholder="الصق رابط الصورة هنا، افصل بين الروابط بفاصلة" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
-                  <p className="text-xs text-gray-500 mt-1">لفصل صور متعددة، استخدم فاصلة ( , ). الصورة الأولى ستكون الصورة الرئيسية.</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">صور المنتج (الصورة الأولى هي الرئيسية)</label>
+                  <input ref={imageInputRef} type="file" multiple accept="image/*" onChange={(e) => handleFileChange(e, 'image')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                  <div className="mt-4 flex flex-wrap gap-4">
+                    {imagePreviews.map((src, index) => (
+                      <div key={index} className="relative">
+                        <img src={src} alt={`preview ${index}`} className="w-24 h-24 object-cover rounded-md shadow-sm"/>
+                        <button type="button" onClick={() => removeImage(index)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">&times;</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Video Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">فيديو المنتج (اختياري)</label>
+                  <input ref={videoInputRef} type="file" accept="video/*" onChange={(e) => handleFileChange(e, 'video')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                  {videoPreview && (
+                    <div className="mt-4 relative w-48">
+                      <video src={videoPreview} className="w-48 h-auto rounded-md shadow-sm" />
+                      <button type="button" onClick={removeVideo} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">&times;</button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex space-x-3 rtl:space-x-reverse pt-2">
                   <button type="submit" className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm">{isEditing ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>
                   <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-800 font-semibold px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">{isEditing ? 'إلغاء التعديل' : 'مسح الحقول'}</button>
@@ -390,13 +479,13 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
     )
 }
 
-const AdminNotifications: React.FC<{email: string, setEmail: React.Dispatch<React.SetStateAction<string>>}> = ({email, setEmail}) => {
-    const [tempEmail, setTempEmail] = useState(email);
+const AdminNotifications: React.FC<{formspreeUrl: string, setFormspreeUrl: React.Dispatch<React.SetStateAction<string>>}> = ({formspreeUrl, setFormspreeUrl}) => {
+    const [tempUrl, setTempUrl] = useState(formspreeUrl);
     const [saved, setSaved] = useState(false);
 
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
-        setEmail(tempEmail);
+        setFormspreeUrl(tempUrl);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
     };
@@ -408,28 +497,34 @@ const AdminNotifications: React.FC<{email: string, setEmail: React.Dispatch<Reac
              <div className="flex">
                 <div className="py-1"><svg className="h-6 w-6 text-green-500 ml-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
                 <div>
-                    <p className="font-bold">خطوة هامة: استلام الطلبات عبر البريد</p>
-                    <p className="text-sm">أدخل بريدك الإلكتروني هنا. عند كل طلب جديد، سيتم فتح تطبيق البريد لدى الزبون مع رسالة جاهزة لإرسالها إليك مباشرة. هذه هي الطريقة الوحيدة لاستلام الطلبات.</p>
+                    <p className="font-bold">خطوة هامة: استلام الطلبات عبر Formspree</p>
+                    <p className="text-sm">
+                      لضمان وصول كل الطلبات، نستخدم خدمة Formspree.
+                      <br/> 1. اذهب إلى <a href="https://formspree.io" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-semibold hover:underline">Formspree.io</a> وأنشئ حساباً مجانياً.
+                      <br/> 2. أنشئ "New Form"، ثم اذهب إلى قسم "Integration" وانسخ رابط "Endpoint" الخاص بك.
+                      <br/> 3. الصق الرابط في الحقل أدناه واحفظه.
+                    </p>
                 </div>
             </div>
         </div>
         <form onSubmit={handleSave} className="max-w-md space-y-4">
             <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">البريد الإلكتروني لاستلام الطلبات</label>
+                <label htmlFor="formspree" className="block text-sm font-medium text-gray-700">رابط Formspree Endpoint</label>
                 <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={tempEmail}
-                    onChange={(e) => setTempEmail(e.target.value)}
+                    id="formspree"
+                    name="formspree"
+                    type="url"
+                    value={tempUrl}
+                    onChange={(e) => setTempUrl(e.target.value)}
                     required
-                    placeholder="example@email.com"
-                    className="w-full p-3 mt-1 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="https://formspree.io/f/xxxxxxxx"
+                    className="w-full p-3 mt-1 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-left"
+                    dir="ltr"
                 />
             </div>
             <div className="flex items-center space-x-4">
                 <button type="submit" className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm">
-                    حفظ البريد
+                    حفظ الرابط
                 </button>
                 {saved && <p className="text-sm text-green-600">تم الحفظ بنجاح!</p>}
             </div>
@@ -443,10 +538,10 @@ const AdminPage: React.FC<{
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   deliveryFees: DeliveryFee[];
   setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>;
-  notificationEmail: string;
-  setNotificationEmail: React.Dispatch<React.SetStateAction<string>>;
+  formspreeUrl: string;
+  setFormspreeUrl: React.Dispatch<React.SetStateAction<string>>;
   onLogout: () => void;
-}> = ({ products, setProducts, deliveryFees, setDeliveryFees, notificationEmail, setNotificationEmail, onLogout }) => {
+}> = ({ products, setProducts, deliveryFees, setDeliveryFees, formspreeUrl, setFormspreeUrl, onLogout }) => {
     const [activeView, setActiveView] = useState('dashboard');
 
     const menuItems = [
@@ -479,10 +574,10 @@ const AdminPage: React.FC<{
 
             {/* Main Content */}
             <main className="flex-1 p-6 md:p-8 overflow-y-auto">
-                {activeView === 'dashboard' && <AdminDashboard notificationEmail={notificationEmail} />}
+                {activeView === 'dashboard' && <AdminDashboard formspreeUrl={formspreeUrl} />}
                 {activeView === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
                 {activeView === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
-                {activeView === 'notifications' && <AdminNotifications email={notificationEmail} setEmail={setNotificationEmail} />}
+                {activeView === 'notifications' && <AdminNotifications formspreeUrl={formspreeUrl} setFormspreeUrl={setFormspreeUrl} />}
             </main>
         </div>
     );
@@ -497,7 +592,7 @@ const App: React.FC = () => {
   // State Management
   const [products, setProducts] = useLocalStorage<Product[]>('products', MOCK_PRODUCTS);
   const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
-  const [notificationEmail, setNotificationEmail] = useLocalStorage<string>('notification_email', '');
+  const [formspreeUrl, setFormspreeUrl] = useLocalStorage<string>('formspree_url', '');
 
   // Routing State
   const [route, setRoute] = useState(window.location.hash);
@@ -536,42 +631,46 @@ const App: React.FC = () => {
     setOrderModalOpen(true);
   };
 
-  const handlePlaceOrder = (order: Omit<Order, 'id' | 'timestamp'>) => {
-    setOrderModalOpen(false);
-
-    if (!notificationEmail) {
-        console.error("Owner's notification email is not set.");
-        alert('تم تقديم طلبك بنجاح! سيتم التواصل معك قريباً. (ملاحظة لصاحب المتجر: لم يتم إرسال بريد إلكتروني لعدم تحديد إيميل الإشعارات في لوحة التحكم).');
+  const handlePlaceOrder = async (order: Omit<Order, 'id' | 'timestamp'>, setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>) => {
+    if (!formspreeUrl) {
+        console.error("Formspree URL is not set by the store owner.");
+        alert('عذراً، خدمة الطلب غير متاحة حالياً. الرجاء التواصل مع صاحب المتجر.');
+        setIsSubmitting(false);
         return;
     }
+    
+    // Prepare data for Formspree
+    const formData = {
+        'المنتج': order.product.name,
+        'سعر المنتج': `${order.product.price.toLocaleString()} د.ج`,
+        'اسم الزبون': order.customerName,
+        'رقم الهاتف': order.phone,
+        'الولاية': order.wilaya,
+        'البلدية': order.municipality,
+        'العنوان': order.address,
+        'سعر التوصيل': `${order.deliveryFee.toLocaleString()} د.ج`,
+        'السعر الإجمالي': `${order.totalPrice.toLocaleString()} د.ج`,
+    };
 
-    const subject = `طلب جديد لمنتج: ${order.product.name}`;
-    const body = `
-مرحباً،
+    try {
+        const response = await fetch(formspreeUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(formData),
+        });
 
-تم استلام طلب جديد بالتفاصيل التالية:
-
-------------------------------------
-**المنتج:** ${order.product.name}
-**سعر المنتج:** ${order.product.price.toLocaleString()} د.ج
-------------------------------------
-**بيانات الزبون:**
-**الاسم:** ${order.customerName}
-**الهاتف:** ${order.phone}
-**الولاية:** ${order.wilaya}
-**البلدية:** ${order.municipality}
-**العنوان:** ${order.address}
-------------------------------------
-**التكلفة:**
-**سعر التوصيل:** ${order.deliveryFee.toLocaleString()} د.ج
-**السعر الإجمالي:** ${order.totalPrice.toLocaleString()} د.ج
-------------------------------------
-    `;
-
-    const mailtoLink = `mailto:${notificationEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-    alert('شكراً لطلبك! سيتم الآن فتح تطبيق البريد الإلكتروني لإرسال تفاصيل الطلب. الرجاء الضغط على "إرسال" في تطبيق البريد لإتمام الطلب.');
-    window.location.href = mailtoLink;
+        if (response.ok) {
+            alert('شكراً لك! تم استلام طلبك بنجاح وسيتم التواصل معك قريباً.');
+            setOrderModalOpen(false);
+        } else {
+            throw new Error('Network response was not ok.');
+        }
+    } catch (error) {
+        console.error('Error submitting order:', error);
+        alert('حدث خطأ أثناء إرسال طلبك. الرجاء المحاولة مرة أخرى أو التواصل معنا مباشرة.');
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const renderPage = () => {
@@ -590,8 +689,8 @@ const App: React.FC = () => {
               setProducts={setProducts} 
               deliveryFees={deliveryFees} 
               setDeliveryFees={setDeliveryFees}
-              notificationEmail={notificationEmail}
-              setNotificationEmail={setNotificationEmail} 
+              formspreeUrl={formspreeUrl}
+              setFormspreeUrl={setFormspreeUrl} 
               onLogout={handleAdminLogout} 
             />;
         } else {

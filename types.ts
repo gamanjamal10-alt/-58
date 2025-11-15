@@ -14,6 +14,7 @@ export interface Product {
   price: number;
   category: ProductCategory;
   images: string[];
+  videoUrl?: string; // Optional video URL
 }
 
 export interface Wilaya {
