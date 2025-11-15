@@ -318,102 +318,125 @@ const AdminPage: React.FC<{
     const [activeTab, setActiveTab] = useState('products');
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-3xl font-bold mb-6">لوحة التحكم</h2>
-            <div className="border-b mb-6">
-                <nav className="flex space-x-4 rtl:space-x-reverse">
-                    <button onClick={() => setActiveTab('products')} className={`py-2 px-4 font-semibold ${activeTab === 'products' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>إدارة المنتجات</button>
-                    <button onClick={() => setActiveTab('orders')} className={`py-2 px-4 font-semibold ${activeTab === 'orders' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>الطلبات ({orders.length})</button>
-                    <button onClick={() => setActiveTab('delivery')} className={`py-2 px-4 font-semibold ${activeTab === 'delivery' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>أسعار التوصيل</button>
+        <div className="bg-white p-6 rounded-lg shadow-lg min-h-[70vh]">
+            <h2 className="text-3xl font-bold mb-6 text-gray-800">لوحة التحكم الإدارية</h2>
+            <div className="border-b border-gray-200 mb-6">
+                <nav className="flex space-x-4 rtl:space-x-reverse -mb-px">
+                    <button onClick={() => setActiveTab('products')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'products' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>إدارة المنتجات</button>
+                    <button onClick={() => setActiveTab('orders')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'orders' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>الطلبات ({orders.length})</button>
+                    <button onClick={() => setActiveTab('delivery')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'delivery' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>أسعار التوصيل</button>
                 </nav>
             </div>
-            {activeTab === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
-            {activeTab === 'orders' && <AdminOrders orders={orders} />}
-            {activeTab === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
+            <div className="mt-6">
+                {activeTab === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
+                {activeTab === 'orders' && <AdminOrders orders={orders} />}
+                {activeTab === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
+            </div>
         </div>
     );
 };
 
 // Admin Sub-components
 const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<React.SetStateAction<Product[]>>}> = ({products, setProducts}) => {
-    const [form, setForm] = useState<Omit<Product, 'id'> & {id: number | null}>({id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']});
+    const initialFormState = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']};
+    const [form, setForm] = useState<Omit<Product, 'id'> & {id: number | null}>(initialFormState);
+    const isEditing = form.id !== null;
 
     const handleSave = (e: React.FormEvent) => {
       e.preventDefault();
       const images = form.images[0].split(',').map(s => s.trim()).filter(Boolean);
-      if (form.id) {
+       if (images.length === 0) {
+        alert("الرجاء إضافة رابط صورة واحد على الأقل.");
+        return;
+      }
+      if (form.id) { // Editing
         setProducts(products.map(p => p.id === form.id ? {...form, id: form.id, images} : p));
-      } else {
+      } else { // Adding
         setProducts([...products, {...form, id: new Date().getTime(), images}]);
       }
-      setForm({id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']});
+      setForm(initialFormState); // Reset form
     }
-    const handleEdit = (product: Product) => setForm({...product, images: [product.images.join(', ')]});
+    const handleEdit = (product: Product) => {
+      setForm({...product, images: [product.images.join(', ')]});
+      window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to form
+    }
     const handleDelete = (id: number) => {
       if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
         setProducts(products.filter(p => p.id !== id));
       }
     };
+    const resetForm = () => setForm(initialFormState);
 
     return <div>
-        <form onSubmit={handleSave} className="mb-8 p-4 border rounded-lg space-y-4 bg-gray-50">
-            <h3 className="text-xl font-semibold">{form.id ? 'تعديل منتج' : 'إضافة منتج جديد'}</h3>
-            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="اسم المنتج" className="w-full p-2 border rounded" required />
-            <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="وصف المنتج" className="w-full p-2 border rounded" required />
-            <input type="number" value={form.price} onChange={e => setForm({...form, price: Number(e.target.value)})} placeholder="السعر" className="w-full p-2 border rounded" required />
-            <select value={form.category} onChange={e => setForm({...form, category: e.target.value as ProductCategory})} className="w-full p-2 border rounded bg-white">
-                {Object.values(ProductCategory).map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <input value={form.images[0]} onChange={e => setForm({...form, images: [e.target.value]})} placeholder="روابط الصور (مفصولة بفاصلة)" className="w-full p-2 border rounded" required />
-            <div className="flex space-x-2 rtl:space-x-reverse">
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">حفظ المنتج</button>
-              {form.id && <button type="button" onClick={() => setForm({id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']})} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">إلغاء التعديل</button>}
+        <form onSubmit={handleSave} className="mb-10 p-6 border border-gray-200 rounded-lg space-y-4 bg-gray-50 shadow-sm">
+            <h3 className="text-xl font-bold text-gray-800">{isEditing ? 'تعديل المنتج' : 'إضافة منتج جديد'}</h3>
+            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="اسم المنتج" className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+            <textarea value={form.description} rows={4} onChange={e => setForm({...form, description: e.target.value})} placeholder="وصف المنتج" className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input type="number" value={form.price} onChange={e => setForm({...form, price: Number(e.target.value)})} placeholder="السعر (د.ج)" className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+              <select value={form.category} onChange={e => setForm({...form, category: e.target.value as ProductCategory})} className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-blue-500 focus:border-blue-500">
+                  {Object.values(ProductCategory).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">روابط الصور</label>
+              <input value={form.images[0]} onChange={e => setForm({...form, images: [e.target.value]})} placeholder="الصق رابط الصورة هنا، افصل بين الروابط بفاصلة" className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required />
+              <p className="text-xs text-gray-500 mt-1">لفصل صور متعددة، استخدم فاصلة ( , ). الصورة الأولى ستكون الصورة الرئيسية.</p>
+            </div>
+            <div className="flex space-x-3 rtl:space-x-reverse pt-2">
+              <button type="submit" className="bg-blue-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-blue-700 transition-colors shadow-sm">{isEditing ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>
+              <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-800 font-semibold px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">{isEditing ? 'إلغاء التعديل' : 'مسح الحقول'}</button>
             </div>
         </form>
-        <div className="space-y-4">
-            {products.map(p => (
-                <div key={p.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center">
-                      <img src={p.images[0]} alt={p.name} className="w-12 h-12 object-cover rounded-md ml-4"/>
-                      <span>{p.name}</span>
+
+        <h3 className="text-xl font-bold text-gray-800 mb-4">قائمة المنتجات الحالية</h3>
+        <div className="space-y-3">
+            {products.length > 0 ? products.map(p => (
+                <div key={p.id} className="grid grid-cols-12 items-center gap-4 p-3 border rounded-lg bg-white shadow-sm">
+                    <div className="col-span-2 sm:col-span-1">
+                      <img src={p.images[0]} alt={p.name} className="w-16 h-16 object-cover rounded-md"/>
                     </div>
-                    <div>
-                        <button onClick={() => handleEdit(p)} className="bg-yellow-500 text-white px-3 py-1 rounded mx-1 hover:bg-yellow-600">تعديل</button>
-                        <button onClick={() => handleDelete(p.id)} className="bg-red-500 text-white px-3 py-1 rounded mx-1 hover:bg-red-600">حذف</button>
+                    <div className="col-span-10 sm:col-span-5 font-semibold text-gray-700 truncate">{p.name}</div>
+                    <div className="col-span-6 sm:col-span-3 text-blue-600 font-bold">{p.price.toLocaleString()} د.ج</div>
+                    <div className="col-span-6 sm:col-span-3 flex justify-end space-x-2 rtl:space-x-reverse">
+                        <button onClick={() => handleEdit(p)} className="bg-yellow-500 text-white px-3 py-1.5 text-sm rounded-md hover:bg-yellow-600 transition-colors">تعديل</button>
+                        <button onClick={() => handleDelete(p.id)} className="bg-red-500 text-white px-3 py-1.5 text-sm rounded-md hover:bg-red-600 transition-colors">حذف</button>
                     </div>
                 </div>
-            ))}
+            )) : <p className="text-center text-gray-500 py-4">لم تقم بإضافة أي منتجات بعد.</p>}
         </div>
     </div>
 }
 
 const AdminOrders: React.FC<{orders: Order[]}> = ({orders}) => (
     <div className="overflow-x-auto">
-        {orders.length === 0 ? <p>لا توجد طلبات حالياً.</p> :
-        <table className="min-w-full bg-white">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="py-2 px-4 text-right">المنتج</th>
-              <th className="py-2 px-4 text-right">الزبون</th>
-              <th className="py-2 px-4 text-right">الهاتف</th>
-              <th className="py-2 px-4 text-right">العنوان</th>
-              <th className="py-2 px-4 text-right">السعر الإجمالي</th>
-              <th className="py-2 px-4 text-right">التاريخ</th>
-            </tr>
-          </thead>
-          <tbody>
-          {orders.map(order => (
-              <tr key={order.id} className="border-b">
-                  <td className="py-2 px-4">{order.product.name}</td>
-                  <td className="py-2 px-4">{order.customerName}</td>
-                  <td className="py-2 px-4">{order.phone}</td>
-                  <td className="py-2 px-4">{`${order.wilaya}, ${order.municipality}, ${order.address}`}</td>
-                  <td className="py-2 px-4">{order.totalPrice.toLocaleString()} د.ج</td>
-                  <td className="py-2 px-4 text-sm text-gray-600">{new Date(order.timestamp).toLocaleString('ar-DZ')}</td>
+        {orders.length === 0 ? <p className="text-center text-gray-500 py-4">لا توجد طلبات حالياً.</p> :
+        <div className="border border-gray-200 rounded-lg shadow-sm">
+          <table className="min-w-full bg-white divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المنتج</th>
+                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الزبون</th>
+                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الهاتف</th>
+                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">العنوان</th>
+                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">السعر الإجمالي</th>
+                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">تاريخ الطلب</th>
               </tr>
-          ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+            {orders.map((order, index) => (
+                <tr key={order.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.product.name}</td>
+                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-700">{order.customerName}</td>
+                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-700" dir="ltr">{order.phone}</td>
+                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-700 max-w-xs truncate">{`${order.wilaya}, ${order.municipality}, ${order.address}`}</td>
+                    <td className="py-4 px-4 whitespace-nowrap text-sm font-semibold text-blue-600">{order.totalPrice.toLocaleString()} د.ج</td>
+                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-600">{new Date(order.timestamp).toLocaleString('ar-DZ', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                </tr>
+            ))}
+            </tbody>
+          </table>
+        </div>
         }
     </div>
 )
@@ -422,17 +445,33 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
     const handleFeeChange = (wilayaId: number, fee: number) => {
         setDeliveryFees(deliveryFees.map(df => df.wilayaId === wilayaId ? {...df, fee: isNaN(fee) ? 0 : fee} : df));
     }
-    return <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {ALGERIAN_WILAYAS.map(w => {
-            const fee = deliveryFees.find(df => df.wilayaId === w.id)?.fee ?? 0;
-            return (
-                <div key={w.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
-                    <label htmlFor={`fee-${w.id}`} className="font-medium">{w.name}</label>
-                    <input id={`fee-${w.id}`} type="number" value={fee} onChange={e => handleFeeChange(w.id, parseInt(e.target.value))} className="w-24 p-1 border rounded text-center" />
+    return (
+      <div>
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-r-lg">
+            <div className="flex">
+                <div className="py-1"><svg className="h-6 w-6 text-blue-500 ml-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                <div>
+                    <p className="font-bold">تعديل أسعار التوصيل</p>
+                    <p className="text-sm">قم بتحديد سعر التوصيل لكل ولاية. سيتم تطبيق السعر تلقائياً عند تقديم الزبون للطلب.</p>
                 </div>
-            )
-        })}
-    </div>
+            </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {ALGERIAN_WILAYAS.map(w => {
+                const fee = deliveryFees.find(df => df.wilayaId === w.id)?.fee ?? 0;
+                return (
+                    <div key={w.id} className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm">
+                        <label htmlFor={`fee-${w.id}`} className="font-medium text-gray-700">{w.name}</label>
+                        <div className="relative">
+                           <input id={`fee-${w.id}`} type="number" value={fee} onChange={e => handleFeeChange(w.id, parseInt(e.target.value))} className="w-28 p-2 border border-gray-300 rounded-md text-center focus:ring-blue-500 focus:border-blue-500" />
+                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">د.ج</span>
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+      </div>
+    )
 }
 
 
