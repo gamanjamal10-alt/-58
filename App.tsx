@@ -43,12 +43,18 @@ const Header: React.FC = () => (
 );
 
 const Footer: React.FC = () => (
-  <footer className="bg-white mt-12 py-6 border-t">
-    <div className="container mx-auto text-center text-gray-500">
-      <p>&copy; {new Date().getFullYear()} متجري. كل الحقوق محفوظة.</p>
-    </div>
-  </footer>
+    <footer className="bg-white mt-12 py-6 border-t">
+        <div className="container mx-auto text-center text-gray-500">
+            <p>&copy; {new Date().getFullYear()} متجري. كل الحقوق محفوظة.</p>
+            <div className="mt-4">
+                <a href="#/admin" className="text-sm text-blue-600 hover:underline">
+                    الدخول للوحة التحكم
+                </a>
+            </div>
+        </div>
+    </footer>
 );
+
 
 const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
     <a href={`#/product/${product.id}`} className="block bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer transition-transform transform hover:-translate-y-1 group">
