@@ -243,6 +243,34 @@ const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     );
 };
 
+const AdminDashboard: React.FC<{notificationEmail: string}> = ({notificationEmail}) => (
+    <div className="bg-white p-6 rounded-lg shadow-md">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">مرحباً بك في لوحة التحكم</h3>
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+             <div className="flex">
+                <div className="py-1 shrink-0"><svg className="h-6 w-6 text-blue-500 ml-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                <div>
+                    <p className="font-bold">نظام استلام الطلبات</p>
+                    <p className="text-sm">
+                        هذا المتجر يعمل بدون قاعدة بيانات مركزية. لذلك، الطريقة الوحيدة والمضمونة لاستلام طلبات زبائنك هي عبر بريدك الإلكتروني.
+                    </p>
+                    {notificationEmail ? (
+                        <p className="text-sm mt-2">
+                            جميع الطلبات الجديدة سيتم إرسالها إلى: <strong className="font-mono">{notificationEmail}</strong>.
+                            <br/>
+                            الرجاء تفقد بريدك الإلكتروني بانتظام لمتابعة الطلبات.
+                        </p>
+                    ) : (
+                         <p className="text-sm mt-2 text-red-600 font-semibold">
+                            الرجاء الذهاب إلى "إعدادات الإشعارات" وتحديد بريدك الإلكتروني لبدء استلام الطلبات.
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
 const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<React.SetStateAction<Product[]>>}> = ({products, setProducts}) => {
     const initialFormState = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']};
     const [form, setForm] = useState<Omit<Product, 'id'> & {id: number | null}>(initialFormState);
@@ -327,40 +355,6 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
         </div>
     </div>
 }
-
-const AdminOrders: React.FC<{orders: Order[]}> = ({orders}) => (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h3 className="text-xl font-bold text-gray-800 mb-4">الطلبات الجديدة</h3>
-      <div className="overflow-x-auto">
-        {orders.length === 0 ? <p className="text-center text-gray-500 p-6">لا توجد طلبات حالياً.</p> :
-          <table className="min-w-full bg-white divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المنتج</th>
-                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الزبون</th>
-                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الهاتف</th>
-                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">العنوان</th>
-                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">السعر الإجمالي</th>
-                <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">تاريخ الطلب</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-            {orders.slice().reverse().map((order, index) => (
-                <tr key={order.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.product.name}</td>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-700">{order.customerName}</td>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-700" dir="ltr">{order.phone}</td>
-                    <td className="py-4 px-4 text-sm text-gray-700 min-w-[200px]">{`${order.wilaya}, ${order.municipality}, ${order.address}`}</td>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm font-semibold text-indigo-600">{order.totalPrice.toLocaleString()} د.ج</td>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-600">{new Date(order.timestamp).toLocaleString('ar-DZ', { dateStyle: 'medium', timeStyle: 'short' })}</td>
-                </tr>
-            ))}
-            </tbody>
-          </table>
-        }
-      </div>
-    </div>
-)
 
 const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>}> = ({deliveryFees, setDeliveryFees}) => {
     const handleFeeChange = (wilayaId: number, fee: number) => {
@@ -447,18 +441,17 @@ const AdminNotifications: React.FC<{email: string, setEmail: React.Dispatch<Reac
 const AdminPage: React.FC<{ 
   products: Product[]; 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
-  orders: Order[];
   deliveryFees: DeliveryFee[];
   setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>;
   notificationEmail: string;
   setNotificationEmail: React.Dispatch<React.SetStateAction<string>>;
   onLogout: () => void;
-}> = ({ products, setProducts, orders, deliveryFees, setDeliveryFees, notificationEmail, setNotificationEmail, onLogout }) => {
-    const [activeView, setActiveView] = useState('products');
+}> = ({ products, setProducts, deliveryFees, setDeliveryFees, notificationEmail, setNotificationEmail, onLogout }) => {
+    const [activeView, setActiveView] = useState('dashboard');
 
     const menuItems = [
+      { id: 'dashboard', label: 'لوحة التحكم الرئيسية', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
       { id: 'products', label: 'إدارة المنتجات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg> },
-      { id: 'orders', label: `الطلبات (${orders.length})`, icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> },
       { id: 'delivery', label: 'أسعار التوصيل', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2-2h8a1 1 0 001-1zM21 11V5a2 2 0 00-2-2H9.572a2 2 0 00-1.414.586l-2.286 2.286A2 2 0 005 7.286V11m16 0a2 2 0 01-2 2h-1m-1-4l-3 3m0 0l-3-3m3 3V3"></path></svg> },
       { id: 'notifications', label: 'إعدادات الإشعارات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> },
     ]
@@ -486,8 +479,8 @@ const AdminPage: React.FC<{
 
             {/* Main Content */}
             <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+                {activeView === 'dashboard' && <AdminDashboard notificationEmail={notificationEmail} />}
                 {activeView === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
-                {activeView === 'orders' && <AdminOrders orders={orders} />}
                 {activeView === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
                 {activeView === 'notifications' && <AdminNotifications email={notificationEmail} setEmail={setNotificationEmail} />}
             </main>
@@ -503,7 +496,6 @@ const AdminPage: React.FC<{
 const App: React.FC = () => {
   // State Management
   const [products, setProducts] = useLocalStorage<Product[]>('products', MOCK_PRODUCTS);
-  const [orders, setOrders] = useLocalStorage<Order[]>('orders', []);
   const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
   const [notificationEmail, setNotificationEmail] = useLocalStorage<string>('notification_email', '');
 
@@ -545,13 +537,6 @@ const App: React.FC = () => {
   };
 
   const handlePlaceOrder = (order: Omit<Order, 'id' | 'timestamp'>) => {
-    const newOrder: Order = {
-      ...order,
-      id: `order_${new Date().getTime()}`,
-      timestamp: new Date(),
-    };
-    // Save order in admin's localStorage for their reference
-    setOrders(prevOrders => [newOrder, ...prevOrders]);
     setOrderModalOpen(false);
 
     if (!notificationEmail) {
@@ -603,7 +588,6 @@ const App: React.FC = () => {
             return <AdminPage 
               products={products} 
               setProducts={setProducts} 
-              orders={orders} 
               deliveryFees={deliveryFees} 
               setDeliveryFees={setDeliveryFees}
               notificationEmail={notificationEmail}
