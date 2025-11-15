@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, ProductCategory, Order, DeliveryFee } from './types';
 import { ALGERIAN_WILAYAS, MOCK_PRODUCTS } from './constants';
 
@@ -35,17 +35,31 @@ const App: React.FC = () => {
   const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
 
   // Routing State
-  const [page, setPage] = useState<{ name: 'home' } | { name: 'product'; id: number } | { name: 'admin' }>({ name: 'home' });
+  const [route, setRoute] = useState(window.location.hash);
+
+  // Auth State
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
+    return sessionStorage.getItem('isAdmin') === 'true';
+  });
 
   // Order Modal State
   const [isOrderModalOpen, setOrderModalOpen] = useState(false);
   const [productToOrder, setProductToOrder] = useState<Product | null>(null);
 
-  const navigateTo = (p: typeof page) => {
-    setPage(p);
-    window.scrollTo(0, 0);
+  useEffect(() => {
+    const handleHashChange = () => {
+      setRoute(window.location.hash);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleAdminLogin = () => {
+    setIsAdminAuthenticated(true);
+    sessionStorage.setItem('isAdmin', 'true');
   };
-  
+
   const handleOrderNow = (product: Product) => {
     setProductToOrder(product);
     setOrderModalOpen(true);
@@ -63,22 +77,28 @@ const App: React.FC = () => {
   };
 
   const renderPage = () => {
-    switch (page.name) {
-      case 'home':
-        return <HomePage products={products} navigateTo={navigateTo} />;
-      case 'product':
-        const product = products.find(p => p.id === page.id);
-        return product ? <ProductPage product={product} onOrderNow={handleOrderNow} /> : <div>المنتج غير موجود</div>;
-      case 'admin':
-        return <AdminPage products={products} setProducts={setProducts} orders={orders} deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />;
-      default:
-        return <HomePage products={products} navigateTo={navigateTo} />;
+    const path = route.slice(1) || '/';
+
+    if (path.startsWith('/product/')) {
+        const id = parseInt(path.split('/')[2]);
+        const product = products.find(p => p.id === id);
+        return product ? <ProductPage product={product} onOrderNow={handleOrderNow} /> : <div className="text-center py-10">المنتج غير موجود</div>;
     }
+
+    if (path === '/admin') {
+        if (isAdminAuthenticated) {
+            return <AdminPage products={products} setProducts={setProducts} orders={orders} deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />;
+        } else {
+            return <AdminLogin onLogin={handleAdminLogin} />;
+        }
+    }
+    
+    return <HomePage products={products} />;
   };
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      <Header navigateTo={navigateTo} />
+      <Header />
       <main className="container mx-auto px-4 py-8">
         {renderPage()}
       </main>
@@ -97,13 +117,12 @@ const App: React.FC = () => {
 
 
 // ========= COMPONENTS =========
-const Header: React.FC<{ navigateTo: (page: any) => void }> = ({ navigateTo }) => (
+const Header: React.FC = () => (
   <header className="bg-white shadow-md sticky top-0 z-50">
     <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-      <h1 onClick={() => navigateTo({ name: 'home' })} className="text-2xl font-bold text-gray-800 cursor-pointer">متجري</h1>
+      <a href="/#" className="text-2xl font-bold text-gray-800 cursor-pointer">متجري</a>
       <nav>
-        <a onClick={() => navigateTo({ name: 'home' })} className="text-gray-600 hover:text-blue-600 mx-4 cursor-pointer">الرئيسية</a>
-        <a onClick={() => navigateTo({ name: 'admin' })} className="text-gray-600 hover:text-blue-600 mx-4 cursor-pointer">لوحة التحكم</a>
+        <a href="/#" className="text-gray-600 hover:text-blue-600 mx-4 cursor-pointer">الرئيسية</a>
       </nav>
     </div>
   </header>
@@ -117,15 +136,15 @@ const Footer: React.FC = () => (
   </footer>
 );
 
-const ProductCard: React.FC<{ product: Product; navigateTo: (page: any) => void }> = ({ product, navigateTo }) => (
-    <div onClick={() => navigateTo({ name: 'product', id: product.id })} className="bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer transition-transform transform hover:-translate-y-1 group">
+const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
+    <a href={`#/product/${product.id}`} className="block bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer transition-transform transform hover:-translate-y-1 group">
         <img className="w-full h-56 object-cover group-hover:opacity-90" src={product.images[0]} alt={product.name} />
         <div className="p-4">
             <h3 className="text-lg font-semibold text-gray-800 truncate">{product.name}</h3>
             <p className="text-blue-600 font-bold text-xl mt-2">{product.price.toLocaleString()} د.ج</p>
             <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full mt-2 inline-block">{product.category}</span>
         </div>
-    </div>
+    </a>
 );
 
 const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onClose: () => void; onPlaceOrder: (order: any) => void }> = ({ product, deliveryFees, onClose, onPlaceOrder }) => {
@@ -185,7 +204,7 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
 
 
 // ========= PAGES =========
-const HomePage: React.FC<{ products: Product[]; navigateTo: (page: any) => void }> = ({ products, navigateTo }) => {
+const HomePage: React.FC<{ products: Product[] }> = ({ products }) => {
   const [filter, setFilter] = useState<ProductCategory | 'all'>('all');
   const categories: ('all' | ProductCategory)[] = ['all', ...Object.values(ProductCategory)];
   const filteredProducts = filter === 'all' ? products : products.filter(p => p.category === filter);
@@ -210,7 +229,7 @@ const HomePage: React.FC<{ products: Product[]; navigateTo: (page: any) => void 
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredProducts.map(p => <ProductCard key={p.id} product={p} navigateTo={navigateTo} />)}
+            {filteredProducts.map(p => <ProductCard key={p.id} product={p} />)}
         </div>
     </div>
   );
@@ -245,6 +264,50 @@ const ProductPage: React.FC<{ product: Product; onOrderNow: (product: Product) =
   );
 };
 
+const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const ADMIN_PASSWORD = 'admin123'; // The password for the admin panel
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (password === ADMIN_PASSWORD) {
+            onLogin();
+        } else {
+            setError('كلمة المرور غير صحيحة.');
+        }
+    };
+
+    return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+                <h2 className="text-2xl font-bold text-center text-gray-800">تسجيل دخول المدير</h2>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700">كلمة المرور</label>
+                        <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                            required
+                            className="w-full p-3 mt-1 border rounded-md"
+                        />
+                    </div>
+                    {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+                    <div>
+                        <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-md hover:bg-blue-700 transition-colors">
+                            دخول
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+
 const AdminPage: React.FC<{ 
   products: Product[]; 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
@@ -273,24 +336,27 @@ const AdminPage: React.FC<{
 
 // Admin Sub-components
 const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<React.SetStateAction<Product[]>>}> = ({products, setProducts}) => {
-    // A simplified form for add/edit product
     const [form, setForm] = useState<Omit<Product, 'id'> & {id: number | null}>({id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']});
 
     const handleSave = (e: React.FormEvent) => {
       e.preventDefault();
       const images = form.images[0].split(',').map(s => s.trim()).filter(Boolean);
-      if (form.id) { // Edit
+      if (form.id) {
         setProducts(products.map(p => p.id === form.id ? {...form, id: form.id, images} : p));
-      } else { // Add
+      } else {
         setProducts([...products, {...form, id: new Date().getTime(), images}]);
       }
-      setForm({id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']}); // Reset
+      setForm({id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']});
     }
     const handleEdit = (product: Product) => setForm({...product, images: [product.images.join(', ')]});
-    const handleDelete = (id: number) => setProducts(products.filter(p => p.id !== id));
+    const handleDelete = (id: number) => {
+      if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
+        setProducts(products.filter(p => p.id !== id));
+      }
+    };
 
     return <div>
-        <form onSubmit={handleSave} className="mb-8 p-4 border rounded-lg space-y-4">
+        <form onSubmit={handleSave} className="mb-8 p-4 border rounded-lg space-y-4 bg-gray-50">
             <h3 className="text-xl font-semibold">{form.id ? 'تعديل منتج' : 'إضافة منتج جديد'}</h3>
             <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="اسم المنتج" className="w-full p-2 border rounded" required />
             <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="وصف المنتج" className="w-full p-2 border rounded" required />
@@ -299,15 +365,21 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
                 {Object.values(ProductCategory).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <input value={form.images[0]} onChange={e => setForm({...form, images: [e.target.value]})} placeholder="روابط الصور (مفصولة بفاصلة)" className="w-full p-2 border rounded" required />
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">حفظ المنتج</button>
+            <div className="flex space-x-2 rtl:space-x-reverse">
+              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">حفظ المنتج</button>
+              {form.id && <button type="button" onClick={() => setForm({id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']})} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">إلغاء التعديل</button>}
+            </div>
         </form>
         <div className="space-y-4">
             {products.map(p => (
                 <div key={p.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <span>{p.name}</span>
+                    <div className="flex items-center">
+                      <img src={p.images[0]} alt={p.name} className="w-12 h-12 object-cover rounded-md ml-4"/>
+                      <span>{p.name}</span>
+                    </div>
                     <div>
-                        <button onClick={() => handleEdit(p)} className="bg-yellow-500 text-white px-3 py-1 rounded mx-1">تعديل</button>
-                        <button onClick={() => handleDelete(p.id)} className="bg-red-500 text-white px-3 py-1 rounded mx-1">حذف</button>
+                        <button onClick={() => handleEdit(p)} className="bg-yellow-500 text-white px-3 py-1 rounded mx-1 hover:bg-yellow-600">تعديل</button>
+                        <button onClick={() => handleDelete(p.id)} className="bg-red-500 text-white px-3 py-1 rounded mx-1 hover:bg-red-600">حذف</button>
                     </div>
                 </div>
             ))}
@@ -316,19 +388,33 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
 }
 
 const AdminOrders: React.FC<{orders: Order[]}> = ({orders}) => (
-    <div>
+    <div className="overflow-x-auto">
         {orders.length === 0 ? <p>لا توجد طلبات حالياً.</p> :
-        <div className="space-y-4">
-            {orders.map(order => (
-                <div key={order.id} className="p-4 border rounded-lg">
-                    <p><strong>المنتج:</strong> {order.product.name}</p>
-                    <p><strong>الزبون:</strong> {order.customerName} - <strong>الهاتف:</strong> {order.phone}</p>
-                    <p><strong>العنوان:</strong> {order.wilaya}, {order.municipality}, {order.address}</p>
-                    <p><strong>السعر الإجمالي:</strong> {order.totalPrice.toLocaleString()} د.ج (شامل التوصيل)</p>
-                    <p className="text-sm text-gray-500">تاريخ الطلب: {new Date(order.timestamp).toLocaleString()}</p>
-                </div>
-            ))}
-        </div>}
+        <table className="min-w-full bg-white">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="py-2 px-4 text-right">المنتج</th>
+              <th className="py-2 px-4 text-right">الزبون</th>
+              <th className="py-2 px-4 text-right">الهاتف</th>
+              <th className="py-2 px-4 text-right">العنوان</th>
+              <th className="py-2 px-4 text-right">السعر الإجمالي</th>
+              <th className="py-2 px-4 text-right">التاريخ</th>
+            </tr>
+          </thead>
+          <tbody>
+          {orders.map(order => (
+              <tr key={order.id} className="border-b">
+                  <td className="py-2 px-4">{order.product.name}</td>
+                  <td className="py-2 px-4">{order.customerName}</td>
+                  <td className="py-2 px-4">{order.phone}</td>
+                  <td className="py-2 px-4">{`${order.wilaya}, ${order.municipality}, ${order.address}`}</td>
+                  <td className="py-2 px-4">{order.totalPrice.toLocaleString()} د.ج</td>
+                  <td className="py-2 px-4 text-sm text-gray-600">{new Date(order.timestamp).toLocaleString('ar-DZ')}</td>
+              </tr>
+          ))}
+          </tbody>
+        </table>
+        }
     </div>
 )
 
@@ -340,9 +426,9 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
         {ALGERIAN_WILAYAS.map(w => {
             const fee = deliveryFees.find(df => df.wilayaId === w.id)?.fee ?? 0;
             return (
-                <div key={w.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <label htmlFor={`fee-${w.id}`}>{w.name}</label>
-                    <input id={`fee-${w.id}`} type="number" value={fee} onChange={e => handleFeeChange(w.id, parseInt(e.target.value))} className="w-24 p-1 border rounded" />
+                <div key={w.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                    <label htmlFor={`fee-${w.id}`} className="font-medium">{w.name}</label>
+                    <input id={`fee-${w.id}`} type="number" value={fee} onChange={e => handleFeeChange(w.id, parseInt(e.target.value))} className="w-24 p-1 border rounded text-center" />
                 </div>
             )
         })}
