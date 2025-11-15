@@ -27,96 +27,10 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<Re
   return [storedValue, setValue];
 }
 
-// ========= MAIN APP COMPONENT =========
-const App: React.FC = () => {
-  // State Management
-  const [products, setProducts] = useLocalStorage<Product[]>('products', MOCK_PRODUCTS);
-  const [orders, setOrders] = useLocalStorage<Order[]>('orders', []);
-  const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
+// ====================================================================
+// ========================== PUBLIC COMPONENTS =======================
+// ====================================================================
 
-  // Routing State
-  const [route, setRoute] = useState(window.location.hash);
-
-  // Auth State
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
-    return sessionStorage.getItem('isAdmin') === 'true';
-  });
-
-  // Order Modal State
-  const [isOrderModalOpen, setOrderModalOpen] = useState(false);
-  const [productToOrder, setProductToOrder] = useState<Product | null>(null);
-
-  useEffect(() => {
-    const handleHashChange = () => {
-      setRoute(window.location.hash);
-      window.scrollTo(0, 0);
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  const handleAdminLogin = () => {
-    setIsAdminAuthenticated(true);
-    sessionStorage.setItem('isAdmin', 'true');
-  };
-
-  const handleOrderNow = (product: Product) => {
-    setProductToOrder(product);
-    setOrderModalOpen(true);
-  };
-
-  const handlePlaceOrder = (order: Omit<Order, 'id' | 'timestamp'>) => {
-    const newOrder: Order = {
-      ...order,
-      id: `order_${new Date().getTime()}`,
-      timestamp: new Date(),
-    };
-    setOrders(prevOrders => [newOrder, ...prevOrders]);
-    setOrderModalOpen(false);
-    alert('تم استلام طلبك بنجاح! سنتصل بك قريباً للتأكيد.');
-  };
-
-  const renderPage = () => {
-    const path = route.slice(1) || '/';
-
-    if (path.startsWith('/product/')) {
-        const id = parseInt(path.split('/')[2]);
-        const product = products.find(p => p.id === id);
-        return product ? <ProductPage product={product} onOrderNow={handleOrderNow} /> : <div className="text-center py-10">المنتج غير موجود</div>;
-    }
-
-    if (path === '/admin') {
-        if (isAdminAuthenticated) {
-            return <AdminPage products={products} setProducts={setProducts} orders={orders} deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />;
-        } else {
-            return <AdminLogin onLogin={handleAdminLogin} />;
-        }
-    }
-    
-    return <HomePage products={products} />;
-  };
-
-  return (
-    <div className="bg-gray-50 min-h-screen">
-      <Header />
-      <main className="container mx-auto px-4 py-8">
-        {renderPage()}
-      </main>
-      <Footer />
-      {isOrderModalOpen && productToOrder && (
-        <OrderModal
-          product={productToOrder}
-          deliveryFees={deliveryFees}
-          onClose={() => setOrderModalOpen(false)}
-          onPlaceOrder={handlePlaceOrder}
-        />
-      )}
-    </div>
-  );
-};
-
-
-// ========= COMPONENTS =========
 const Header: React.FC = () => (
   <header className="bg-white shadow-md sticky top-0 z-50">
     <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -202,8 +116,6 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
     );
 };
 
-
-// ========= PAGES =========
 const HomePage: React.FC<{ products: Product[] }> = ({ products }) => {
   const [filter, setFilter] = useState<ProductCategory | 'all'>('all');
   const categories: ('all' | ProductCategory)[] = ['all', ...Object.values(ProductCategory)];
@@ -235,7 +147,6 @@ const HomePage: React.FC<{ products: Product[] }> = ({ products }) => {
   );
 };
 
-
 const ProductPage: React.FC<{ product: Product; onOrderNow: (product: Product) => void }> = ({ product, onOrderNow }) => {
   const [mainImage, setMainImage] = useState(product.images[0]);
   return (
@@ -263,6 +174,10 @@ const ProductPage: React.FC<{ product: Product; onOrderNow: (product: Product) =
       </div>
   );
 };
+
+// ====================================================================
+// ========================== ADMIN COMPONENTS ========================
+// ====================================================================
 
 const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     const [password, setPassword] = useState('');
@@ -307,36 +222,6 @@ const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     );
 };
 
-
-const AdminPage: React.FC<{ 
-  products: Product[]; 
-  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
-  orders: Order[];
-  deliveryFees: DeliveryFee[];
-  setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>;
-}> = ({ products, setProducts, orders, deliveryFees, setDeliveryFees }) => {
-    const [activeTab, setActiveTab] = useState('products');
-
-    return (
-        <div className="bg-white p-6 rounded-lg shadow-lg min-h-[70vh]">
-            <h2 className="text-3xl font-bold mb-6 text-gray-800">لوحة التحكم الإدارية</h2>
-            <div className="border-b border-gray-200 mb-6">
-                <nav className="flex space-x-4 rtl:space-x-reverse -mb-px">
-                    <button onClick={() => setActiveTab('products')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'products' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>إدارة المنتجات</button>
-                    <button onClick={() => setActiveTab('orders')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'orders' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>الطلبات ({orders.length})</button>
-                    <button onClick={() => setActiveTab('delivery')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'delivery' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>أسعار التوصيل</button>
-                </nav>
-            </div>
-            <div className="mt-6">
-                {activeTab === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
-                {activeTab === 'orders' && <AdminOrders orders={orders} />}
-                {activeTab === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
-            </div>
-        </div>
-    );
-};
-
-// Admin Sub-components
 const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<React.SetStateAction<Product[]>>}> = ({products, setProducts}) => {
     const initialFormState = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: ['']};
     const [form, setForm] = useState<Omit<Product, 'id'> & {id: number | null}>(initialFormState);
@@ -474,5 +359,142 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
     )
 }
 
+const AdminPage: React.FC<{ 
+  products: Product[]; 
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  orders: Order[];
+  deliveryFees: DeliveryFee[];
+  setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>;
+  onLogout: () => void;
+}> = ({ products, setProducts, orders, deliveryFees, setDeliveryFees, onLogout }) => {
+    const [activeTab, setActiveTab] = useState('products');
+
+    return (
+        <div className="bg-white p-6 rounded-lg shadow-lg min-h-[70vh]">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-gray-800">لوحة التحكم الإدارية</h2>
+              <button onClick={onLogout} className="bg-red-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-red-700 transition-colors shadow-sm">
+                تسجيل الخروج
+              </button>
+            </div>
+            <div className="border-b border-gray-200 mb-6">
+                <nav className="flex space-x-4 rtl:space-x-reverse -mb-px">
+                    <button onClick={() => setActiveTab('products')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'products' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>إدارة المنتجات</button>
+                    <button onClick={() => setActiveTab('orders')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'orders' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>الطلبات ({orders.length})</button>
+                    <button onClick={() => setActiveTab('delivery')} className={`py-3 px-4 font-semibold border-b-2 ${activeTab === 'delivery' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>أسعار التوصيل</button>
+                </nav>
+            </div>
+            <div className="mt-6">
+                {activeTab === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
+                {activeTab === 'orders' && <AdminOrders orders={orders} />}
+                {activeTab === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
+            </div>
+        </div>
+    );
+};
+
+// ====================================================================
+// ========================= MAIN APP COMPONENT =======================
+// ====================================================================
+
+const App: React.FC = () => {
+  // State Management
+  const [products, setProducts] = useLocalStorage<Product[]>('products', MOCK_PRODUCTS);
+  const [orders, setOrders] = useLocalStorage<Order[]>('orders', []);
+  const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
+
+  // Routing State
+  const [route, setRoute] = useState(window.location.hash);
+
+  // Auth State
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
+    return sessionStorage.getItem('isAdmin') === 'true';
+  });
+
+  // Order Modal State
+  const [isOrderModalOpen, setOrderModalOpen] = useState(false);
+  const [productToOrder, setProductToOrder] = useState<Product | null>(null);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setRoute(window.location.hash);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleAdminLogin = () => {
+    setIsAdminAuthenticated(true);
+    sessionStorage.setItem('isAdmin', 'true');
+  };
+  
+  const handleAdminLogout = () => {
+    setIsAdminAuthenticated(false);
+    sessionStorage.removeItem('isAdmin');
+    window.location.hash = '#/'; // Redirect to home
+  };
+
+  const handleOrderNow = (product: Product) => {
+    setProductToOrder(product);
+    setOrderModalOpen(true);
+  };
+
+  const handlePlaceOrder = (order: Omit<Order, 'id' | 'timestamp'>) => {
+    const newOrder: Order = {
+      ...order,
+      id: `order_${new Date().getTime()}`,
+      timestamp: new Date(),
+    };
+    setOrders(prevOrders => [newOrder, ...prevOrders]);
+    setOrderModalOpen(false);
+    alert('تم استلام طلبك بنجاح! سنتصل بك قريباً للتأكيد.');
+  };
+
+  const renderPage = () => {
+    const path = route.slice(1) || '/';
+
+    if (path.startsWith('/product/')) {
+        const id = parseInt(path.split('/')[2]);
+        const product = products.find(p => p.id === id);
+        return product ? <ProductPage product={product} onOrderNow={handleOrderNow} /> : <div className="text-center py-10">المنتج غير موجود</div>;
+    }
+
+    if (path === '/admin') {
+        if (isAdminAuthenticated) {
+            return <AdminPage 
+              products={products} 
+              setProducts={setProducts} 
+              orders={orders} 
+              deliveryFees={deliveryFees} 
+              setDeliveryFees={setDeliveryFees} 
+              onLogout={handleAdminLogout} 
+            />;
+        } else {
+            return <AdminLogin onLogin={handleAdminLogin} />;
+        }
+    }
+    
+    return <HomePage products={products} />;
+  };
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      <Header />
+      <main className="container mx-auto px-4 py-8">
+        {renderPage()}
+      </main>
+      <Footer />
+      {isOrderModalOpen && productToOrder && (
+        <OrderModal
+          product={productToOrder}
+          deliveryFees={deliveryFees}
+          onClose={() => setOrderModalOpen(false)}
+          onPlaceOrder={handlePlaceOrder}
+        />
+      )}
+    </div>
+  );
+};
 
 export default App;
