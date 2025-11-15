@@ -273,61 +273,65 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
     };
     const resetForm = () => setForm(initialFormState);
 
-    return <div>
-        <form onSubmit={handleSave} className="mb-10 p-6 border border-gray-200 rounded-lg space-y-4 bg-gray-50 shadow-sm">
-            <h3 className="text-xl font-bold text-gray-800">{isEditing ? 'تعديل المنتج' : 'إضافة منتج جديد'}</h3>
-            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="اسم المنتج" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
-            <textarea value={form.description} rows={4} onChange={e => setForm({...form, description: e.target.value})} placeholder="وصف المنتج" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input type="number" value={form.price} onChange={e => setForm({...form, price: Number(e.target.value)})} placeholder="السعر (د.ج)" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
-              <select value={form.category} onChange={e => setForm({...form, category: e.target.value as ProductCategory})} className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500">
-                  {Object.values(ProductCategory).map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">روابط الصور</label>
-              <input value={form.images[0]} onChange={e => setForm({...form, images: [e.target.value]})} placeholder="الصق رابط الصورة هنا، افصل بين الروابط بفاصلة" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
-              <p className="text-xs text-gray-500 mt-1">لفصل صور متعددة، استخدم فاصلة ( , ). الصورة الأولى ستكون الصورة الرئيسية.</p>
-            </div>
-            <div className="flex space-x-3 rtl:space-x-reverse pt-2">
-              <button type="submit" className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm">{isEditing ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>
-              <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-800 font-semibold px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">{isEditing ? 'إلغاء التعديل' : 'مسح الحقول'}</button>
-            </div>
-        </form>
+    return <div className="space-y-8">
+        <div className="bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">{isEditing ? 'تعديل المنتج' : 'إضافة منتج جديد'}</h3>
+            <form onSubmit={handleSave} className="space-y-4">
+                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="اسم المنتج" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
+                <textarea value={form.description} rows={4} onChange={e => setForm({...form, description: e.target.value})} placeholder="وصف المنتج" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input type="number" value={form.price} onChange={e => setForm({...form, price: Number(e.target.value)})} placeholder="السعر (د.ج)" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
+                  <select value={form.category} onChange={e => setForm({...form, category: e.target.value as ProductCategory})} className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500">
+                      {Object.values(ProductCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">روابط الصور</label>
+                  <input value={form.images[0]} onChange={e => setForm({...form, images: [e.target.value]})} placeholder="الصق رابط الصورة هنا، افصل بين الروابط بفاصلة" className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" required />
+                  <p className="text-xs text-gray-500 mt-1">لفصل صور متعددة، استخدم فاصلة ( , ). الصورة الأولى ستكون الصورة الرئيسية.</p>
+                </div>
+                <div className="flex space-x-3 rtl:space-x-reverse pt-2">
+                  <button type="submit" className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm">{isEditing ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>
+                  <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-800 font-semibold px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">{isEditing ? 'إلغاء التعديل' : 'مسح الحقول'}</button>
+                </div>
+            </form>
+        </div>
 
-        <h3 className="text-xl font-bold text-gray-800 mb-4">قائمة المنتجات الحالية</h3>
-        <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-            <table className="min-w-full bg-white divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الصورة</th>
-                        <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الاسم</th>
-                        <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">السعر</th>
-                        <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">إجراءات</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                    {products.length > 0 ? products.map((p, index) => (
-                        <tr key={p.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="py-2 px-4"><img src={p.images[0]} alt={p.name} className="w-16 h-16 object-cover rounded-md"/></td>
-                            <td className="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.name}</td>
-                            <td className="py-4 px-4 whitespace-nowrap text-sm font-semibold text-indigo-600">{p.price.toLocaleString()} د.ج</td>
-                            <td className="py-4 px-4 whitespace-nowrap text-sm font-medium space-x-2 rtl:space-x-reverse">
-                                <button onClick={() => handleEdit(p)} className="text-yellow-600 hover:text-yellow-800">تعديل</button>
-                                <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800">حذف</button>
-                            </td>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">قائمة المنتجات الحالية</h3>
+            <div className="overflow-x-auto">
+                <table className="min-w-full bg-white divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الصورة</th>
+                            <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الاسم</th>
+                            <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">السعر</th>
+                            <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">إجراءات</th>
                         </tr>
-                    )) : <tr><td colSpan={4} className="text-center text-gray-500 py-6">لم تقم بإضافة أي منتجات بعد.</td></tr>}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                        {products.length > 0 ? products.map((p, index) => (
+                            <tr key={p.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                <td className="py-2 px-4"><img src={p.images[0]} alt={p.name} className="w-16 h-16 object-cover rounded-md"/></td>
+                                <td className="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.name}</td>
+                                <td className="py-4 px-4 whitespace-nowrap text-sm font-semibold text-indigo-600">{p.price.toLocaleString()} د.ج</td>
+                                <td className="py-4 px-4 whitespace-nowrap text-sm font-medium space-x-2 rtl:space-x-reverse">
+                                    <button onClick={() => handleEdit(p)} className="text-yellow-600 hover:text-yellow-800">تعديل</button>
+                                    <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800">حذف</button>
+                                </td>
+                            </tr>
+                        )) : <tr><td colSpan={4} className="text-center text-gray-500 py-6">لم تقم بإضافة أي منتجات بعد.</td></tr>}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 }
 
 const AdminOrders: React.FC<{orders: Order[]}> = ({orders}) => (
-    <div>
+    <div className="bg-white p-6 rounded-lg shadow-md">
       <h3 className="text-xl font-bold text-gray-800 mb-4">الطلبات الجديدة</h3>
-      <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+      <div className="overflow-x-auto">
         {orders.length === 0 ? <p className="text-center text-gray-500 p-6">لا توجد طلبات حالياً.</p> :
           <table className="min-w-full bg-white divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -341,12 +345,12 @@ const AdminOrders: React.FC<{orders: Order[]}> = ({orders}) => (
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-            {orders.map((order, index) => (
+            {orders.slice().reverse().map((order, index) => (
                 <tr key={order.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.product.name}</td>
                     <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-700">{order.customerName}</td>
                     <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-700" dir="ltr">{order.phone}</td>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-700 max-w-xs truncate">{`${order.wilaya}, ${order.municipality}, ${order.address}`}</td>
+                    <td className="py-4 px-4 text-sm text-gray-700 min-w-[200px]">{`${order.wilaya}, ${order.municipality}, ${order.address}`}</td>
                     <td className="py-4 px-4 whitespace-nowrap text-sm font-semibold text-indigo-600">{order.totalPrice.toLocaleString()} د.ج</td>
                     <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-600">{new Date(order.timestamp).toLocaleString('ar-DZ', { dateStyle: 'medium', timeStyle: 'short' })}</td>
                 </tr>
@@ -363,7 +367,7 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
         setDeliveryFees(deliveryFees.map(df => df.wilayaId === wilayaId ? {...df, fee: isNaN(fee) ? 0 : fee} : df));
     }
     return (
-      <div>
+      <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-xl font-bold text-gray-800 mb-4">أسعار التوصيل</h3>
         <div className="bg-indigo-50 border-l-4 border-indigo-400 p-4 mb-6 rounded-r-lg">
             <div className="flex">
@@ -378,7 +382,7 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
             {ALGERIAN_WILAYAS.map(w => {
                 const fee = deliveryFees.find(df => df.wilayaId === w.id)?.fee ?? 0;
                 return (
-                    <div key={w.id} className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm">
+                    <div key={w.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
                         <label htmlFor={`fee-${w.id}`} className="font-medium text-gray-700">{w.name}</label>
                         <div className="relative">
                            <input id={`fee-${w.id}`} type="number" value={fee} onChange={e => handleFeeChange(w.id, parseInt(e.target.value))} className="w-32 p-2 border border-gray-300 rounded-md text-center focus:ring-indigo-500 focus:border-indigo-500" />
@@ -392,20 +396,71 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
     )
 }
 
+const AdminNotifications: React.FC<{email: string, setEmail: React.Dispatch<React.SetStateAction<string>>}> = ({email, setEmail}) => {
+    const [tempEmail, setTempEmail] = useState(email);
+    const [saved, setSaved] = useState(false);
+
+    const handleSave = (e: React.FormEvent) => {
+        e.preventDefault();
+        setEmail(tempEmail);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+    };
+
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">إعدادات الإشعارات</h3>
+        <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-6 rounded-r-lg">
+             <div className="flex">
+                <div className="py-1"><svg className="h-6 w-6 text-green-500 ml-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
+                <div>
+                    <p className="font-bold">خطوة هامة: استلام الطلبات عبر البريد</p>
+                    <p className="text-sm">أدخل بريدك الإلكتروني هنا. عند كل طلب جديد، سيتم فتح تطبيق البريد لدى الزبون مع رسالة جاهزة لإرسالها إليك مباشرة. هذه هي الطريقة الوحيدة لاستلام الطلبات.</p>
+                </div>
+            </div>
+        </div>
+        <form onSubmit={handleSave} className="max-w-md space-y-4">
+            <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">البريد الإلكتروني لاستلام الطلبات</label>
+                <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={tempEmail}
+                    onChange={(e) => setTempEmail(e.target.value)}
+                    required
+                    placeholder="example@email.com"
+                    className="w-full p-3 mt-1 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                />
+            </div>
+            <div className="flex items-center space-x-4">
+                <button type="submit" className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm">
+                    حفظ البريد
+                </button>
+                {saved && <p className="text-sm text-green-600">تم الحفظ بنجاح!</p>}
+            </div>
+        </form>
+      </div>
+    )
+}
+
 const AdminPage: React.FC<{ 
   products: Product[]; 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   orders: Order[];
   deliveryFees: DeliveryFee[];
   setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>;
+  notificationEmail: string;
+  setNotificationEmail: React.Dispatch<React.SetStateAction<string>>;
   onLogout: () => void;
-}> = ({ products, setProducts, orders, deliveryFees, setDeliveryFees, onLogout }) => {
+}> = ({ products, setProducts, orders, deliveryFees, setDeliveryFees, notificationEmail, setNotificationEmail, onLogout }) => {
     const [activeView, setActiveView] = useState('products');
 
     const menuItems = [
       { id: 'products', label: 'إدارة المنتجات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg> },
       { id: 'orders', label: `الطلبات (${orders.length})`, icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> },
       { id: 'delivery', label: 'أسعار التوصيل', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2-2h8a1 1 0 001-1zM21 11V5a2 2 0 00-2-2H9.572a2 2 0 00-1.414.586l-2.286 2.286A2 2 0 005 7.286V11m16 0a2 2 0 01-2 2h-1m-1-4l-3 3m0 0l-3-3m3 3V3"></path></svg> },
+      { id: 'notifications', label: 'إعدادات الإشعارات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> },
     ]
 
     return (
@@ -434,6 +489,7 @@ const AdminPage: React.FC<{
                 {activeView === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
                 {activeView === 'orders' && <AdminOrders orders={orders} />}
                 {activeView === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
+                {activeView === 'notifications' && <AdminNotifications email={notificationEmail} setEmail={setNotificationEmail} />}
             </main>
         </div>
     );
@@ -449,6 +505,7 @@ const App: React.FC = () => {
   const [products, setProducts] = useLocalStorage<Product[]>('products', MOCK_PRODUCTS);
   const [orders, setOrders] = useLocalStorage<Order[]>('orders', []);
   const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
+  const [notificationEmail, setNotificationEmail] = useLocalStorage<string>('notification_email', '');
 
   // Routing State
   const [route, setRoute] = useState(window.location.hash);
@@ -493,9 +550,43 @@ const App: React.FC = () => {
       id: `order_${new Date().getTime()}`,
       timestamp: new Date(),
     };
+    // Save order in admin's localStorage for their reference
     setOrders(prevOrders => [newOrder, ...prevOrders]);
     setOrderModalOpen(false);
-    alert('تم استلام طلبك بنجاح! سنتصل بك قريباً للتأكيد.');
+
+    if (!notificationEmail) {
+        console.error("Owner's notification email is not set.");
+        alert('تم تقديم طلبك بنجاح! سيتم التواصل معك قريباً. (ملاحظة لصاحب المتجر: لم يتم إرسال بريد إلكتروني لعدم تحديد إيميل الإشعارات في لوحة التحكم).');
+        return;
+    }
+
+    const subject = `طلب جديد لمنتج: ${order.product.name}`;
+    const body = `
+مرحباً،
+
+تم استلام طلب جديد بالتفاصيل التالية:
+
+------------------------------------
+**المنتج:** ${order.product.name}
+**سعر المنتج:** ${order.product.price.toLocaleString()} د.ج
+------------------------------------
+**بيانات الزبون:**
+**الاسم:** ${order.customerName}
+**الهاتف:** ${order.phone}
+**الولاية:** ${order.wilaya}
+**البلدية:** ${order.municipality}
+**العنوان:** ${order.address}
+------------------------------------
+**التكلفة:**
+**سعر التوصيل:** ${order.deliveryFee.toLocaleString()} د.ج
+**السعر الإجمالي:** ${order.totalPrice.toLocaleString()} د.ج
+------------------------------------
+    `;
+
+    const mailtoLink = `mailto:${notificationEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    alert('شكراً لطلبك! سيتم الآن فتح تطبيق البريد الإلكتروني لإرسال تفاصيل الطلب. الرجاء الضغط على "إرسال" في تطبيق البريد لإتمام الطلب.');
+    window.location.href = mailtoLink;
   };
 
   const renderPage = () => {
@@ -514,7 +605,9 @@ const App: React.FC = () => {
               setProducts={setProducts} 
               orders={orders} 
               deliveryFees={deliveryFees} 
-              setDeliveryFees={setDeliveryFees} 
+              setDeliveryFees={setDeliveryFees}
+              notificationEmail={notificationEmail}
+              setNotificationEmail={setNotificationEmail} 
               onLogout={handleAdminLogout} 
             />;
         } else {
