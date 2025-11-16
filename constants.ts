@@ -26,7 +26,8 @@ export const ALGERIAN_WILAYAS: Wilaya[] = [
 
 export const MOCK_PRODUCTS: Product[] = [
     {
-        id: 1,
+        // FIX: Changed id to string to match Product interface
+        id: '1',
         name: "سماعات رأس لاسلكية",
         description: "سماعات رأس لاسلكية عالية الجودة مع عزل للضوضاء وبطارية تدوم طويلاً. مثالية للاستماع للموسيقى والمكالمات.",
         price: 7500,
@@ -37,7 +38,8 @@ export const MOCK_PRODUCTS: Product[] = [
         ]
     },
     {
-        id: 2,
+        // FIX: Changed id to string to match Product interface
+        id: '2',
         name: "قميص قطني فاخر",
         description: "قميص عصري مصنوع من القطن المصري الفاخر. متوفر بعدة ألوان ومقاسات ليناسب جميع الأذواق.",
         price: 3200,
@@ -48,7 +50,8 @@ export const MOCK_PRODUCTS: Product[] = [
         ]
     },
     {
-        id: 3,
+        // FIX: Changed id to string to match Product interface
+        id: '3',
         name: "ماكينة قهوة حديثة",
         description: "ابدأ يومك بكوب قهوة مثالي. ماكينة سهلة الاستخدام، تحضر الإسبريسو والكابتشينو بلمسة زر.",
         price: 12000,
@@ -59,7 +62,8 @@ export const MOCK_PRODUCTS: Product[] = [
         ]
     },
     {
-        id: 4,
+        // FIX: Changed id to string to match Product interface
+        id: '4',
         name: "مجموعة مفكات براغي",
         description: "مجموعة متكاملة من مفكات البراغي لجميع احتياجاتك المنزلية والاحترافية. مصنوعة من الفولاذ المقاوم للصدأ.",
         price: 4500,
@@ -69,7 +73,8 @@ export const MOCK_PRODUCTS: Product[] = [
         ]
     },
      {
-        id: 5,
+        // FIX: Changed id to string to match Product interface
+        id: '5',
         name: "ساعة يد أنيقة",
         description: "ساعة يد بتصميم كلاسيكي وحركة كوارتز دقيقة. مقاومة للماء ومناسبة لجميع المناسبات.",
         price: 9800,
@@ -79,7 +84,8 @@ export const MOCK_PRODUCTS: Product[] = [
         ]
     },
     {
-        id: 6,
+        // FIX: Changed id to string to match Product interface
+        id: '6',
         name: "حقيبة ظهر للابتوب",
         description: "حقيبة ظهر متينة وأنيقة مع جيب مبطن لحماية الكمبيوتر المحمول. مساحة تخزين واسعة ومقاومة للماء.",
         price: 5500,

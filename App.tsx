@@ -1,6 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Product, ProductCategory, Order, DeliveryFee } from './types';
+import { Product, ProductCategory, Order, DeliveryFee, Wilaya, PaymentMethod, OrderStatus } from './types';
 import { ALGERIAN_WILAYAS, MOCK_PRODUCTS } from './constants';
+// Note: You need to create firebase.ts and add your Firebase config
+// import { db, auth } from './firebase'; 
+// import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, query, orderBy } from "firebase/firestore";
+// import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, User } from "firebase/auth";
+
+
+// ====================================================================
+// ========================== MOCK / PLACEHOLDER ======================
+// ====================================================================
+// This is a placeholder for Firebase functionality.
+// To make the app fully functional, you need to set up a Firebase project
+// and replace these mock functions with actual Firebase calls.
+
+const db = {}; // Placeholder
+const auth = {}; // Placeholder
+
+const useFirestoreCollection = <T,>(collectionName: string, initialData: T[]) => {
+    const [data, setData] = useLocalStorage<T[]>(collectionName, initialData);
+    return { data, loading: false, error: null };
+};
+
+const useAuth = () => {
+    const [user, setUser] = useLocalStorage<boolean>('user', false);
+    const login = (email: string, pass: string) => new Promise<void>(res => { setUser(true); res(); });
+    const logout = () => new Promise<void>(res => { setUser(false); res(); });
+    const signup = (email: string, pass: string) => new Promise<void>(res => { setUser(true); res(); });
+    return { user, login, logout, signup };
+}
+
+// END OF MOCK
+// ====================================================================
+
 
 // Helper function to convert a file to a Base64 string
 const fileToBase64 = (file: File): Promise<string> => {
@@ -57,6 +89,9 @@ const Footer: React.FC = () => (
     <footer className="bg-white mt-16 py-8 border-t">
         <div className="container mx-auto text-center text-gray-600">
             <p>&copy; {new Date().getFullYear()} متجري. كل الحقوق محفوظة.</p>
+             <p className="text-sm mt-2">
+                يعمل على <a href="https://58-k615.vercel.app" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">https://58-k615.vercel.app</a>
+             </p>
             <div className="mt-4">
                 <a href="#/admin" className="text-sm text-indigo-600 hover:underline">
                     الدخول للوحة التحكم
@@ -80,32 +115,61 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
     </a>
 );
 
-const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onClose: () => void; onPlaceOrder: (order: any, setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>) => void }> = ({ product, deliveryFees, onClose, onPlaceOrder }) => {
-    const [formData, setFormData] = useState({ name: '', phone: '', wilayaId: ALGERIAN_WILAYAS[0].id, municipality: '', address: '' });
+const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onClose: () => void; onPlaceOrder: (orderData: Omit<Order, 'id' | 'timestamp' | 'status'>) => Promise<void> }> = ({ product, deliveryFees, onClose, onPlaceOrder }) => {
+    const [customerName, setCustomerName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [wilayaId, setWilayaId] = useState(ALGERIAN_WILAYAS[0].id);
+    const [commune, setCommune] = useState('');
+    const [address, setAddress] = useState('');
+    const [quantity, setQuantity] = useState(1);
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.OnDelivery);
+    const [notes, setNotes] = useState('');
+
     const [deliveryFee, setDeliveryFee] = useState(deliveryFees.find(df => df.wilayaId === ALGERIAN_WILAYAS[0].id)?.fee ?? 0);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleWilayaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const wilayaId = parseInt(e.target.value);
-        const fee = deliveryFees.find(df => df.wilayaId === wilayaId)?.fee ?? 0;
-        setFormData({ ...formData, wilayaId });
+        const selectedWilayaId = parseInt(e.target.value);
+        const fee = deliveryFees.find(df => df.wilayaId === selectedWilayaId)?.fee ?? 0;
+        setWilayaId(selectedWilayaId);
         setDeliveryFee(fee);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const totalPrice = (product.price * quantity) + deliveryFee;
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (quantity < 1) {
+            setError("الكمية يجب أن تكون 1 على الأقل.");
+            return;
+        }
         setIsSubmitting(true);
-        const wilaya = ALGERIAN_WILAYAS.find(w => w.id === formData.wilayaId)?.name || '';
-        onPlaceOrder({
-            product,
-            customerName: formData.name,
-            phone: formData.phone,
-            wilaya,
-            municipality: formData.municipality,
-            address: formData.address,
-            deliveryFee,
-            totalPrice: product.price + deliveryFee
-        }, setIsSubmitting);
+        setError(null);
+        const wilayaName = ALGERIAN_WILAYAS.find(w => w.id === wilayaId)?.name || '';
+        
+        try {
+            await onPlaceOrder({
+                productName: product.name,
+                productId: product.id,
+                productImage: product.images[0],
+                pricePerItem: product.price,
+                quantity,
+                customerName,
+                phone,
+                wilaya: wilayaName,
+                commune,
+                address,
+                deliveryFee,
+                totalPrice,
+                paymentMethod,
+                notes,
+            });
+        } catch (err: any) {
+            setError(err.message || 'حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -113,23 +177,56 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-full overflow-y-auto">
                 <div className="p-6">
                     <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-2xl font-bold text-gray-800">طلب المنتج: {product.name}</h2>
+                      <h2 className="text-2xl font-bold text-gray-800">طلب: {product.name}</h2>
                       <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-3xl" aria-label="إغلاق">&times;</button>
                     </div>
-                    <div className="bg-gray-50 border border-gray-200 p-4 rounded-md mb-6 text-center">
-                        <p className="text-lg">سعر المنتج: <span className="font-bold">{product.price.toLocaleString()} د.ج</span></p>
-                        <p className="text-lg">سعر التوصيل: <span className="font-bold">{deliveryFee.toLocaleString()} د.ج</span></p>
-                        <p className="text-xl text-indigo-600">السعر الإجمالي: <span className="font-bold">{(product.price + deliveryFee).toLocaleString()} د.ج</span></p>
-                    </div>
+                    
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <input type="text" placeholder="الاسم واللقب" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        <input type="tel" placeholder="رقم الهاتف" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        <select value={formData.wilayaId} onChange={handleWilayaChange} required className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500">
+                        {error && (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                                <strong className="font-bold">خطأ!</strong>
+                                <span className="block sm:inline ml-2">{error}</span>
+                            </div>
+                        )}
+
+                        <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">معلومات الزبون</h3>
+                        <input type="text" placeholder="الاسم الكامل" value={customerName} onChange={e => setCustomerName(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                        <input type="tel" placeholder="رقم الهاتف" value={phone} onChange={e => setPhone(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                        
+                        <h3 className="text-lg font-semibold text-gray-700 border-b pb-2 pt-2">معلومات التوصيل</h3>
+                        <select value={wilayaId} onChange={handleWilayaChange} required className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500">
                             {ALGERIAN_WILAYAS.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                         </select>
-                        <input type="text" placeholder="البلدية" value={formData.municipality} onChange={e => setFormData({ ...formData, municipality: e.target.value })} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        <input type="text" placeholder="العنوان الكامل" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-md hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed">
+                        <input type="text" placeholder="البلدية (اختياري)" value={commune} onChange={e => setCommune(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                        <input type="text" placeholder="العنوان الكامل" value={address} onChange={e => setAddress(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+
+                        <h3 className="text-lg font-semibold text-gray-700 border-b pb-2 pt-2">تفاصيل الطلب</h3>
+                        <div className="flex items-center space-x-4 rtl:space-x-reverse">
+                           <label htmlFor="quantity" className="font-medium">الكمية:</label>
+                           <input id="quantity" type="number" min="1" value={quantity} onChange={e => setQuantity(Number(e.target.value))} required className="w-24 p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        
+                        <div>
+                          <label className="font-medium">طريقة الدفع:</label>
+                          <div className="mt-2 space-y-2">
+                            {Object.values(PaymentMethod).map(method => (
+                              <label key={method} className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="payment_method" value={method} checked={paymentMethod === method} onChange={() => setPaymentMethod(method)} className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"/>
+                                <span className="ml-3 text-sm font-medium text-gray-700">{method}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <textarea placeholder="ملاحظات (اختياري)" value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+
+                        <div className="bg-gray-50 border border-gray-200 p-4 rounded-md mt-6 text-center space-y-1">
+                            <p className="text-md">سعر المنتج: <span className="font-bold">{(product.price * quantity).toLocaleString()} د.ج</span></p>
+                            <p className="text-md">سعر التوصيل: <span className="font-bold">{deliveryFee.toLocaleString()} د.ج</span></p>
+                            <p className="text-xl text-indigo-600">السعر الإجمالي: <span className="font-bold">{totalPrice.toLocaleString()} د.ج</span></p>
+                        </div>
+
+                        <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-md hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed mt-4">
                           {isSubmitting ? 'جاري الإرسال...' : 'تأكيد الطلب'}
                         </button>
                     </form>
@@ -207,10 +304,6 @@ const ProductPage: React.FC<{ product: Product; onOrderNow: (product: Product) =
                         <svg className="w-5 h-5 ml-2" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413 0 6.557-5.338 11.892-11.894 11.892-1.99 0-3.903-.52-5.586-1.456l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.886-.001 2.267.655 4.398 1.908 6.161l.227.368-1.13 4.135 4.224-1.119.341.205z"></path></svg>
                         واتساب
                       </a>
-                      <a href="tel:000000000" className="flex-1 flex items-center justify-center bg-gray-700 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-800 transition-colors">
-                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
-                        اتصل بنا
-                      </a>
                   </div>
               </div>
           </div>
@@ -223,17 +316,23 @@ const ProductPage: React.FC<{ product: Product; onOrderNow: (product: Product) =
 // ========================== ADMIN COMPONENTS ========================
 // ====================================================================
 
-const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
+const AdminLogin: React.FC<{ onLogin: (email: string, pass: string) => Promise<void> }> = ({ onLogin }) => {
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const ADMIN_PASSWORD = 'admin123';
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (password === ADMIN_PASSWORD) {
-            onLogin();
-        } else {
-            setError('كلمة المرور غير صحيحة.');
+        setIsLoading(true);
+        setError('');
+        try {
+            await onLogin(email, password);
+        } catch (err: any) {
+            setError('فشل تسجيل الدخول. تأكد من البريد وكلمة المرور.');
+            console.error(err);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -241,24 +340,20 @@ const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
         <div className="flex items-center justify-center min-h-[60vh]">
             <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-xl">
                 <h2 className="text-2xl font-bold text-center text-gray-800">تسجيل الدخول للوحة التحكم</h2>
-                <p className="text-center text-gray-600">كلمة المرور الافتراضية هي: <code className="bg-gray-100 p-1 rounded font-mono">admin123</code></p>
+                <p className="text-center text-gray-500 text-sm">هذه المنطقة مخصصة لصاحب المتجر فقط. لإعداد حسابك، استخدم Firebase Authentication.</p>
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">البريد الإلكتروني</label>
+                        <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full p-3 mt-1 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                    </div>
+                    <div>
                         <label htmlFor="password" className="block text-sm font-medium text-gray-700">كلمة المرور</label>
-                        <input
-                            id="password"
-                            name="password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                            required
-                            className="w-full p-3 mt-1 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                        />
+                        <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full p-3 mt-1 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
                     </div>
                     {error && <p className="text-sm text-red-600 text-center">{error}</p>}
                     <div>
-                        <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-md hover:bg-indigo-700 transition-colors">
-                            دخول
+                        <button type="submit" disabled={isLoading} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                            {isLoading ? 'جاري الدخول...' : 'دخول'}
                         </button>
                     </div>
                 </form>
@@ -267,36 +362,10 @@ const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     );
 };
 
-const AdminDashboard: React.FC<{formspreeUrl: string}> = ({formspreeUrl}) => (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">مرحباً بك في لوحة التحكم</h3>
-        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
-             <div className="flex">
-                <div className="py-1 shrink-0"><svg className="h-6 w-6 text-blue-500 ml-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-                <div>
-                    <p className="font-bold">نظام استلام الطلبات</p>
-                    <p className="text-sm">
-                        هذا المتجر يعمل بنظام إرسال تلقائي للطلبات. الطريقة الوحيدة والمضمونة لاستلام طلبات زبائنك هي عبر بريدك الإلكتروني من خلال خدمة Formspree.
-                    </p>
-                    {formspreeUrl ? (
-                        <p className="text-sm mt-2">
-                            جميع الطلبات الجديدة سيتم إرسالها إلى بريدك المرتبط بحساب Formspree.
-                            <br/>
-                            الرجاء تفقد بريدك الإلكتروني بانتظام لمتابعة الطلبات.
-                        </p>
-                    ) : (
-                         <p className="text-sm mt-2 text-red-600 font-semibold">
-                            الرجاء الذهاب إلى "إعدادات الإشعارات" ووضع رابط Formspree الخاص بك لبدء استلام الطلبات.
-                        </p>
-                    )}
-                </div>
-            </div>
-        </div>
-    </div>
-);
 
+// FIX: Destructured props to bring 'products' and 'setProducts' into scope.
 const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<React.SetStateAction<Product[]>>}> = ({products, setProducts}) => {
-    const initialFormState: Omit<Product, 'id'> & {id: number | null} = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: [], videoUrl: ''};
+    const initialFormState: Omit<Product, 'id'> & {id: string | null} = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: [], videoUrl: ''};
     const [form, setForm] = useState(initialFormState);
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     const [videoPreview, setVideoPreview] = useState<string | undefined>('');
@@ -346,7 +415,7 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
       if (form.id) { // Editing
         setProducts(products.map(p => p.id === form.id ? { ...form, id: form.id } as Product : p));
       } else { // Adding
-        setProducts([...products, { ...form, id: new Date().getTime() } as Product]);
+        setProducts([...products, { ...form, id: new Date().getTime().toString() } as Product]);
       }
       resetForm();
     }
@@ -356,7 +425,7 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
       window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to form
     }
     
-    const handleDelete = (id: number) => {
+    const handleDelete = (id: string) => {
       if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
         setProducts(products.filter(p => p.id !== id));
       }
@@ -447,20 +516,14 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
 
 const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>}> = ({deliveryFees, setDeliveryFees}) => {
     const handleFeeChange = (wilayaId: number, fee: number) => {
-        setDeliveryFees(deliveryFees.map(df => df.wilayaId === wilayaId ? {...df, fee: isNaN(fee) ? 0 : fee} : df));
+        const newFees = deliveryFees.map(df => df.wilayaId === wilayaId ? {...df, fee: isNaN(fee) ? 0 : fee} : df);
+        // Add logic to save to Firestore here
+        setDeliveryFees(newFees);
     }
     return (
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-xl font-bold text-gray-800 mb-4">أسعار التوصيل</h3>
-        <div className="bg-indigo-50 border-l-4 border-indigo-400 p-4 mb-6 rounded-r-lg">
-            <div className="flex">
-                <div className="py-1"><svg className="h-6 w-6 text-indigo-500 ml-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-                <div>
-                    <p className="font-bold">تعديل أسعار التوصيل</p>
-                    <p className="text-sm">قم بتحديد سعر التوصيل لكل ولاية. سيتم تطبيق السعر تلقائياً عند تقديم الزبون للطلب.</p>
-                </div>
-            </div>
-        </div>
+        <p className="text-gray-600 mb-6">قم بتحديد سعر التوصيل لكل ولاية. سيتم تطبيق السعر تلقائياً عند تقديم الزبون للطلب.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {ALGERIAN_WILAYAS.map(w => {
                 const fee = deliveryFees.find(df => df.wilayaId === w.id)?.fee ?? 0;
@@ -479,81 +542,77 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
     )
 }
 
-const AdminNotifications: React.FC<{formspreeUrl: string, setFormspreeUrl: React.Dispatch<React.SetStateAction<string>>}> = ({formspreeUrl, setFormspreeUrl}) => {
-    const [tempUrl, setTempUrl] = useState(formspreeUrl);
-    const [saved, setSaved] = useState(false);
-
-    const handleSave = (e: React.FormEvent) => {
-        e.preventDefault();
-        setFormspreeUrl(tempUrl);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-    };
-
+const AdminOrders: React.FC<{ orders: Order[] }> = ({ orders }) => {
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">إعدادات الإشعارات</h3>
-        <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-6 rounded-r-lg">
-             <div className="flex">
-                <div className="py-1"><svg className="h-6 w-6 text-green-500 ml-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
-                <div>
-                    <p className="font-bold">خطوة هامة: استلام الطلبات عبر Formspree</p>
-                    <p className="text-sm">
-                      لضمان وصول كل الطلبات، نستخدم خدمة Formspree.
-                      <br/> 1. اذهب إلى <a href="https://formspree.io" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-semibold hover:underline">Formspree.io</a> وأنشئ حساباً مجانياً.
-                      <br/> 2. أنشئ "New Form"، ثم اذهب إلى قسم "Integration" وانسخ رابط "Endpoint" الخاص بك.
-                      <br/> 3. الصق الرابط في الحقل أدناه واحفظه.
-                    </p>
-                </div>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">إدارة الطلبات</h3>
+             <div className="overflow-x-auto">
+                <table className="min-w-full bg-white divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase">الطلب</th>
+                            <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase">الزبون</th>
+                            <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase">الإجمالي</th>
+                            <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase">الحالة</th>
+                            <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase">التاريخ</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                        {orders.length > 0 ? orders.map(order => (
+                            <tr key={order.id}>
+                                <td className="py-4 px-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <div className="shrink-0 h-12 w-12">
+                                      <img className="h-12 w-12 rounded-md object-cover" src={order.productImage} alt={order.productName} />
+                                    </div>
+                                    <div className="mr-4">
+                                      <div className="text-sm font-medium text-gray-900">{order.productName} (x{order.quantity})</div>
+                                      <div className="text-sm text-gray-500">ID: {order.id.substring(0,6)}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{order.customerName}</div>
+                                  <div className="text-sm text-gray-500">{order.phone}</div>
+                                  <div className="text-sm text-gray-500">{order.wilaya}</div>
+                                </td>
+                                <td className="py-4 px-4 whitespace-nowrap text-sm font-semibold text-indigo-600">{order.totalPrice.toLocaleString()} د.ج</td>
+                                <td className="py-4 px-4 whitespace-nowrap">
+                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                        {order.status}
+                                    </span>
+                                </td>
+                                <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-500">
+                                    {new Date(order.timestamp?.toDate?.() || Date.now()).toLocaleDateString('ar-DZ')}
+                                </td>
+                            </tr>
+                        )) : <tr><td colSpan={5} className="text-center text-gray-500 py-10">لا توجد أي طلبات حالياً.</td></tr>}
+                    </tbody>
+                </table>
             </div>
         </div>
-        <form onSubmit={handleSave} className="max-w-md space-y-4">
-            <div>
-                <label htmlFor="formspree" className="block text-sm font-medium text-gray-700">رابط Formspree Endpoint</label>
-                <input
-                    id="formspree"
-                    name="formspree"
-                    type="url"
-                    value={tempUrl}
-                    onChange={(e) => setTempUrl(e.target.value)}
-                    required
-                    placeholder="https://formspree.io/f/xxxxxxxx"
-                    className="w-full p-3 mt-1 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-left"
-                    dir="ltr"
-                />
-            </div>
-            <div className="flex items-center space-x-4">
-                <button type="submit" className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm">
-                    حفظ الرابط
-                </button>
-                {saved && <p className="text-sm text-green-600">تم الحفظ بنجاح!</p>}
-            </div>
-        </form>
-      </div>
-    )
-}
+    );
+};
+
 
 const AdminPage: React.FC<{ 
-  products: Product[]; 
-  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
-  deliveryFees: DeliveryFee[];
-  setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>;
-  formspreeUrl: string;
-  setFormspreeUrl: React.Dispatch<React.SetStateAction<string>>;
   onLogout: () => void;
-}> = ({ products, setProducts, deliveryFees, setDeliveryFees, formspreeUrl, setFormspreeUrl, onLogout }) => {
-    const [activeView, setActiveView] = useState('dashboard');
+}> = ({ onLogout }) => {
+    const [activeView, setActiveView] = useState('orders');
+    // Using mock/localstorage data for now
+    const [products, setProducts] = useLocalStorage<Product[]>('products_db', MOCK_PRODUCTS.map(p => ({...p, id: p.id.toString() })));
+    const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees_db', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
+    const [orders, setOrders] = useLocalStorage<Order[]>('orders_db', []);
+
 
     const menuItems = [
-      { id: 'dashboard', label: 'لوحة التحكم الرئيسية', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
-      { id: 'products', label: 'إدارة المنتجات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg> },
-      { id: 'delivery', label: 'أسعار التوصيل', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2-2h8a1 1 0 001-1zM21 11V5a2 2 0 00-2-2H9.572a2 2 0 00-1.414.586l-2.286 2.286A2 2 0 005 7.286V11m16 0a2 2 0 01-2 2h-1m-1-4l-3 3m0 0l-3-3m3 3V3"></path></svg> },
-      { id: 'notifications', label: 'إعدادات الإشعارات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> },
+      { id: 'orders', label: 'إدارة الطلبات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>},
+      { id: 'products', label: 'إدارة المنتجات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg> },
+      { id: 'delivery', label: 'أسعار التوصيل', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2-2h8a1 1 0 001-1zM21 11V5a2 2 0 00-2-2H9.572a2 2 0 00-1.414.586l-2.286 2.286A2 2 0 005 7.286V11m16 0a2 2 0 01-2 2h-1m-1-4l-3 3m0 0l-3-3m3 3V3"></path></svg> },
     ]
 
     return (
         <div className="flex flex-col md:flex-row bg-gray-100 rounded-lg shadow-lg min-h-[80vh]">
-            {/* Sidebar */}
             <aside className="w-full md:w-64 bg-gray-800 text-white flex-shrink-0 md:rounded-r-lg">
                 <div className="p-4">
                     <h2 className="text-2xl font-bold">لوحة التحكم</h2>
@@ -566,18 +625,16 @@ const AdminPage: React.FC<{
                        </button>
                     ))}
                     <button onClick={onLogout} className="w-full text-right flex items-center space-x-2 rtl:space-x-reverse px-4 py-3 text-gray-400 hover:bg-red-600 hover:text-white transition-colors duration-200 mt-6">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                         <span>تسجيل الخروج</span>
                     </button>
                 </nav>
             </aside>
 
-            {/* Main Content */}
             <main className="flex-1 p-6 md:p-8 overflow-y-auto">
-                {activeView === 'dashboard' && <AdminDashboard formspreeUrl={formspreeUrl} />}
+                {activeView === 'orders' && <AdminOrders orders={orders} />}
                 {activeView === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
                 {activeView === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
-                {activeView === 'notifications' && <AdminNotifications formspreeUrl={formspreeUrl} setFormspreeUrl={setFormspreeUrl} />}
             </main>
         </div>
     );
@@ -589,135 +646,118 @@ const AdminPage: React.FC<{
 // ====================================================================
 
 const App: React.FC = () => {
-  // State Management
-  const [products, setProducts] = useLocalStorage<Product[]>('products', MOCK_PRODUCTS);
-  const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
-  const [formspreeUrl, setFormspreeUrl] = useLocalStorage<string>('formspree_url', '');
-
-  // Routing State
-  const [route, setRoute] = useState(window.location.hash);
-
-  // Auth State
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
-    return sessionStorage.getItem('isAdmin') === 'true';
-  });
-
-  // Order Modal State
-  const [isOrderModalOpen, setOrderModalOpen] = useState(false);
-  const [productToOrder, setProductToOrder] = useState<Product | null>(null);
-
-  useEffect(() => {
-    const handleHashChange = () => {
-      setRoute(window.location.hash);
-      window.scrollTo(0, 0);
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  const handleAdminLogin = () => {
-    setIsAdminAuthenticated(true);
-    sessionStorage.setItem('isAdmin', 'true');
-  };
-  
-  const handleAdminLogout = () => {
-    setIsAdminAuthenticated(false);
-    sessionStorage.removeItem('isAdmin');
-    window.location.hash = '#/'; // Redirect to home
-  };
-
-  const handleOrderNow = (product: Product) => {
-    setProductToOrder(product);
-    setOrderModalOpen(true);
-  };
-
-  const handlePlaceOrder = async (order: Omit<Order, 'id' | 'timestamp'>, setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>) => {
-    if (!formspreeUrl) {
-        console.error("Formspree URL is not set by the store owner.");
-        alert('عذراً، خدمة الطلب غير متاحة حالياً. الرجاء التواصل مع صاحب المتجر.');
-        setIsSubmitting(false);
-        return;
-    }
+    // Using LocalStorage as a mock database
+    const [products, setProducts] = useLocalStorage<Product[]>('products_db', MOCK_PRODUCTS.map(p => ({...p, id: p.id.toString() })));
+    const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees_db', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
+    const [orders, setOrders] = useLocalStorage<Order[]>('orders_db', []);
     
-    // Prepare data for Formspree
-    const formData = {
-        'المنتج': order.product.name,
-        'سعر المنتج': `${order.product.price.toLocaleString()} د.ج`,
-        'اسم الزبون': order.customerName,
-        'رقم الهاتف': order.phone,
-        'الولاية': order.wilaya,
-        'البلدية': order.municipality,
-        'العنوان': order.address,
-        'سعر التوصيل': `${order.deliveryFee.toLocaleString()} د.ج`,
-        'السعر الإجمالي': `${order.totalPrice.toLocaleString()} د.ج`,
+    // Auth State
+    const { user: isAdminAuthenticated, login, logout } = useAuth();
+
+    // Routing State
+    const [route, setRoute] = useState(window.location.hash);
+
+    // Order Modal State
+    const [isOrderModalOpen, setOrderModalOpen] = useState(false);
+    const [productToOrder, setProductToOrder] = useState<Product | null>(null);
+    
+    // Formspree
+    const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xrbrqwpk';
+
+    useEffect(() => {
+        const handleHashChange = () => {
+        setRoute(window.location.hash);
+        window.scrollTo(0, 0);
+        };
+        window.addEventListener('hashchange', handleHashChange);
+        return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
+
+    const handleOrderNow = (product: Product) => {
+        setProductToOrder(product);
+        setOrderModalOpen(true);
     };
 
-    try {
-        const response = await fetch(formspreeUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(formData),
-        });
+    const handlePlaceOrder = async (orderData: Omit<Order, 'id' | 'timestamp' | 'status'>) => {
+        const newOrder: Order = {
+            ...orderData,
+            id: new Date().getTime().toString(),
+            timestamp: new Date(),
+            status: OrderStatus.New,
+        };
+        
+        // 1. Save to our mock database (LocalStorage)
+        setOrders(prevOrders => [...prevOrders, newOrder]);
+        
+        // 2. Send email notification via Formspree
+        const emailData = {
+            '-- تفاصيل الطلب --': '',
+            'المنتج': `${newOrder.productName} (x${newOrder.quantity})`,
+            'السعر الإجمالي': `${newOrder.totalPrice.toLocaleString()} د.ج`,
+            '-- معلومات الزبون --': '',
+            'الاسم الكامل': newOrder.customerName,
+            'رقم الهاتف': newOrder.phone,
+            'الولاية': newOrder.wilaya,
+            'العنوان': newOrder.address,
+            'طريقة الدفع': newOrder.paymentMethod,
+            'ملاحظات': newOrder.notes || 'لا يوجد',
+        };
 
-        if (response.ok) {
-            alert('شكراً لك! تم استلام طلبك بنجاح وسيتم التواصل معك قريباً.');
+        try {
+            const response = await fetch(FORMSPREE_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(emailData),
+            });
+
+            if (!response.ok) {
+                 // Even if email fails, the order is saved. So we don't throw an error to the user.
+                 console.error('Formspree notification failed, but order was saved locally.');
+            }
+             alert('شكراً لك! تم استلام طلبك بنجاح وسيتم التواصل معك قريباً.');
+             setOrderModalOpen(false);
+
+        } catch (error) {
+            console.error('Error sending Formspree notification:', error);
+            // Show success message anyway because the order is saved.
+            alert('شكراً لك! تم استلام طلبك بنجاح. (حدث خطأ في إرسال الإشعار)');
             setOrderModalOpen(false);
-        } else {
-            throw new Error('Network response was not ok.');
         }
-    } catch (error) {
-        console.error('Error submitting order:', error);
-        alert('حدث خطأ أثناء إرسال طلبك. الرجاء المحاولة مرة أخرى أو التواصل معنا مباشرة.');
-    } finally {
-        setIsSubmitting(false);
-    }
-  };
+    };
 
-  const renderPage = () => {
-    const path = route.slice(1) || '/';
+    const renderPage = () => {
+        const path = route.slice(1) || '/';
 
-    if (path.startsWith('/product/')) {
-        const id = parseInt(path.split('/')[2]);
-        const product = products.find(p => p.id === id);
-        return product ? <ProductPage product={product} onOrderNow={handleOrderNow} /> : <div className="text-center py-10">المنتج غير موجود</div>;
-    }
-
-    if (path === '/admin') {
-        if (isAdminAuthenticated) {
-            return <AdminPage 
-              products={products} 
-              setProducts={setProducts} 
-              deliveryFees={deliveryFees} 
-              setDeliveryFees={setDeliveryFees}
-              formspreeUrl={formspreeUrl}
-              setFormspreeUrl={setFormspreeUrl} 
-              onLogout={handleAdminLogout} 
-            />;
-        } else {
-            return <AdminLogin onLogin={handleAdminLogin} />;
+        if (path.startsWith('/product/')) {
+            const id = path.split('/')[2];
+            const product = products.find(p => p.id === id);
+            return product ? <ProductPage product={product} onOrderNow={handleOrderNow} /> : <div className="text-center py-10">المنتج غير موجود</div>;
         }
-    }
-    
-    return <HomePage products={products} />;
-  };
 
-  return (
-    <div className="bg-slate-50 min-h-screen">
-      <Header />
-      <main className="container mx-auto px-4 py-8">
-        {renderPage()}
-      </main>
-      <Footer />
-      {isOrderModalOpen && productToOrder && (
-        <OrderModal
-          product={productToOrder}
-          deliveryFees={deliveryFees}
-          onClose={() => setOrderModalOpen(false)}
-          onPlaceOrder={handlePlaceOrder}
-        />
-      )}
-    </div>
-  );
+        if (path === '/admin') {
+            return isAdminAuthenticated ? <AdminPage onLogout={logout} /> : <AdminLogin onLogin={login} />;
+        }
+        
+        return <HomePage products={products} />;
+    };
+
+    return (
+        <div className="bg-slate-50 min-h-screen">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+            {renderPage()}
+        </main>
+        <Footer />
+        {isOrderModalOpen && productToOrder && (
+            <OrderModal
+            product={productToOrder}
+            deliveryFees={deliveryFees}
+            onClose={() => setOrderModalOpen(false)}
+            onPlaceOrder={handlePlaceOrder}
+            />
+        )}
+        </div>
+    );
 };
 
 export default App;

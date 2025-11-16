@@ -1,4 +1,3 @@
-
 export enum ProductCategory {
   Electronics = "إلكترونيات",
   Clothing = "ملابس",
@@ -8,7 +7,7 @@ export enum ProductCategory {
 }
 
 export interface Product {
-  id: number;
+  id: string; // Changed to string for Firestore compatibility
   name: string;
   description: string;
   price: number;
@@ -27,15 +26,36 @@ export interface DeliveryFee {
   fee: number;
 }
 
+export enum PaymentMethod {
+  OnDelivery = "الدفع عند الاستلام",
+  BaridiMob = "BaridiMob",
+  CCP = "تحويل CCP",
+}
+
+export enum OrderStatus {
+  New = "جديد",
+  InProgress = "قيد التجهيز",
+  Shipped = "تم الشحن",
+  Delivered = "تم التوصيل",
+  Cancelled = "ملغى",
+}
+
 export interface Order {
   id: string;
-  product: Product;
+  productName: string;
+  productId: string;
+  productImage: string;
+  pricePerItem: number;
+  quantity: number;
   customerName: string;
   phone: string;
   wilaya: string;
-  municipality: string;
+  commune?: string;
   address: string;
-  totalPrice: number;
   deliveryFee: number;
-  timestamp: Date;
+  totalPrice: number;
+  paymentMethod: PaymentMethod;
+  notes?: string;
+  status: OrderStatus;
+  timestamp: any; // Firestore timestamp compatible
 }
