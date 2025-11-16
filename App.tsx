@@ -126,7 +126,7 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
     const [notes, setNotes] = useState('');
 
     const [deliveryFee, setDeliveryFee] = useState(deliveryFees.find(df => df.wilayaId === ALGERIAN_WILAYAS[0].id)?.fee ?? 0);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submissionState, setSubmissionState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
 
     const handleWilayaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -144,7 +144,7 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
             setError("الكمية يجب أن تكون 1 على الأقل.");
             return;
         }
-        setIsSubmitting(true);
+        setSubmissionState('submitting');
         setError(null);
         const wilayaName = ALGERIAN_WILAYAS.find(w => w.id === wilayaId)?.name || '';
         
@@ -165,10 +165,10 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
                 paymentMethod,
                 notes,
             });
+            setSubmissionState('success');
         } catch (err: any) {
-            setError(err.message || 'حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.');
-        } finally {
-            setIsSubmitting(false);
+            setError(err.message || 'فشل إرسال الطلب. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.');
+            setSubmissionState('error');
         }
     };
 
@@ -176,60 +176,73 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4" role="dialog" aria-modal="true">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-full overflow-y-auto">
                 <div className="p-6">
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-2xl font-bold text-gray-800">طلب: {product.name}</h2>
-                      <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-3xl" aria-label="إغلاق">&times;</button>
-                    </div>
-                    
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        {error && (
-                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                                <strong className="font-bold">خطأ!</strong>
-                                <span className="block sm:inline ml-2">{error}</span>
+                    {submissionState === 'success' ? (
+                        <div className="text-center p-8">
+                            <svg className="w-16 h-16 mx-auto text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <h2 className="text-2xl font-bold text-gray-800 mb-4">تم استلام طلبك بنجاح!</h2>
+                            <p className="text-gray-600 mb-6">شكراً لثقتك بنا. سنتواصل معك قريباً عبر الهاتف لتأكيد تفاصيل الشحن.</p>
+                            <button onClick={onClose} className="bg-indigo-600 text-white font-bold py-2 px-8 rounded-md hover:bg-indigo-700 transition-colors">
+                                إغلاق
+                            </button>
+                        </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-center mb-6">
+                          <h2 className="text-2xl font-bold text-gray-800">طلب: {product.name}</h2>
+                          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-3xl" aria-label="إغلاق">&times;</button>
+                        </div>
+                        
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                                    <strong className="font-bold">خطأ! </strong>
+                                    <span className="block sm:inline ml-2">{error}</span>
+                                </div>
+                            )}
+
+                            <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">معلومات الزبون</h3>
+                            <input type="text" placeholder="الاسم الكامل" value={customerName} onChange={e => setCustomerName(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                            <input type="tel" placeholder="رقم الهاتف" value={phone} onChange={e => setPhone(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                            
+                            <h3 className="text-lg font-semibold text-gray-700 border-b pb-2 pt-2">معلومات التوصيل</h3>
+                            <select value={wilayaId} onChange={handleWilayaChange} required className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500">
+                                {ALGERIAN_WILAYAS.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                            </select>
+                            <input type="text" placeholder="البلدية (اختياري)" value={commune} onChange={e => setCommune(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                            <input type="text" placeholder="العنوان الكامل" value={address} onChange={e => setAddress(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+
+                            <h3 className="text-lg font-semibold text-gray-700 border-b pb-2 pt-2">تفاصيل الطلب</h3>
+                            <div className="flex items-center space-x-4 rtl:space-x-reverse">
+                               <label htmlFor="quantity" className="font-medium">الكمية:</label>
+                               <input id="quantity" type="number" min="1" value={quantity} onChange={e => setQuantity(Number(e.target.value))} required className="w-24 p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
                             </div>
-                        )}
+                            
+                            <div>
+                              <label className="font-medium">طريقة الدفع:</label>
+                              <div className="mt-2 space-y-2">
+                                {Object.values(PaymentMethod).map(method => (
+                                  <label key={method} className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="payment_method" value={method} checked={paymentMethod === method} onChange={() => setPaymentMethod(method)} className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"/>
+                                    <span className="ml-3 text-sm font-medium text-gray-700">{method}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
 
-                        <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">معلومات الزبون</h3>
-                        <input type="text" placeholder="الاسم الكامل" value={customerName} onChange={e => setCustomerName(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        <input type="tel" placeholder="رقم الهاتف" value={phone} onChange={e => setPhone(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        
-                        <h3 className="text-lg font-semibold text-gray-700 border-b pb-2 pt-2">معلومات التوصيل</h3>
-                        <select value={wilayaId} onChange={handleWilayaChange} required className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500">
-                            {ALGERIAN_WILAYAS.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                        </select>
-                        <input type="text" placeholder="البلدية (اختياري)" value={commune} onChange={e => setCommune(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        <input type="text" placeholder="العنوان الكامل" value={address} onChange={e => setAddress(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                            <textarea placeholder="ملاحظات (اختياري)" value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
 
-                        <h3 className="text-lg font-semibold text-gray-700 border-b pb-2 pt-2">تفاصيل الطلب</h3>
-                        <div className="flex items-center space-x-4 rtl:space-x-reverse">
-                           <label htmlFor="quantity" className="font-medium">الكمية:</label>
-                           <input id="quantity" type="number" min="1" value={quantity} onChange={e => setQuantity(Number(e.target.value))} required className="w-24 p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-                        </div>
-                        
-                        <div>
-                          <label className="font-medium">طريقة الدفع:</label>
-                          <div className="mt-2 space-y-2">
-                            {Object.values(PaymentMethod).map(method => (
-                              <label key={method} className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
-                                <input type="radio" name="payment_method" value={method} checked={paymentMethod === method} onChange={() => setPaymentMethod(method)} className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"/>
-                                <span className="ml-3 text-sm font-medium text-gray-700">{method}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
+                            <div className="bg-gray-50 border border-gray-200 p-4 rounded-md mt-6 text-center space-y-1">
+                                <p className="text-md">سعر المنتج: <span className="font-bold">{(product.price * quantity).toLocaleString()} د.ج</span></p>
+                                <p className="text-md">سعر التوصيل: <span className="font-bold">{deliveryFee.toLocaleString()} د.ج</span></p>
+                                <p className="text-xl text-indigo-600">السعر الإجمالي: <span className="font-bold">{totalPrice.toLocaleString()} د.ج</span></p>
+                            </div>
 
-                        <textarea placeholder="ملاحظات (اختياري)" value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
-
-                        <div className="bg-gray-50 border border-gray-200 p-4 rounded-md mt-6 text-center space-y-1">
-                            <p className="text-md">سعر المنتج: <span className="font-bold">{(product.price * quantity).toLocaleString()} د.ج</span></p>
-                            <p className="text-md">سعر التوصيل: <span className="font-bold">{deliveryFee.toLocaleString()} د.ج</span></p>
-                            <p className="text-xl text-indigo-600">السعر الإجمالي: <span className="font-bold">{totalPrice.toLocaleString()} د.ج</span></p>
-                        </div>
-
-                        <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-md hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed mt-4">
-                          {isSubmitting ? 'جاري الإرسال...' : 'تأكيد الطلب'}
-                        </button>
-                    </form>
+                            <button type="submit" disabled={submissionState === 'submitting'} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-md hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed mt-4">
+                                {submissionState === 'submitting' ? 'جاري الإرسال...' : submissionState === 'error' ? 'حاول مرة أخرى' : 'تأكيد الطلب'}
+                            </button>
+                        </form>
+                      </>
+                    )}
                 </div>
             </div>
         </div>
@@ -363,7 +376,6 @@ const AdminLogin: React.FC<{ onLogin: (email: string, pass: string) => Promise<v
 };
 
 
-// FIX: Destructured props to bring 'products' and 'setProducts' into scope.
 const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<React.SetStateAction<Product[]>>}> = ({products, setProducts}) => {
     const initialFormState: Omit<Product, 'id'> & {id: string | null} = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: [], videoUrl: ''};
     const [form, setForm] = useState(initialFormState);
@@ -661,7 +673,7 @@ const App: React.FC = () => {
     const [isOrderModalOpen, setOrderModalOpen] = useState(false);
     const [productToOrder, setProductToOrder] = useState<Product | null>(null);
     
-    // Formspree
+    // Formspree - Hardcoded endpoint for reliability
     const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xrbrqwpk';
 
     useEffect(() => {
@@ -686,10 +698,11 @@ const App: React.FC = () => {
             status: OrderStatus.New,
         };
         
-        // 1. Save to our mock database (LocalStorage)
+        // IMPORTANT: The order is only real if the notification is sent successfully.
+        // Saving to localStorage here is only for the admin's own testing purposes.
+        // The definitive record of orders is the admin's email inbox via Formspree.
         setOrders(prevOrders => [...prevOrders, newOrder]);
         
-        // 2. Send email notification via Formspree
         const emailData = {
             '-- تفاصيل الطلب --': '',
             'المنتج': `${newOrder.productName} (x${newOrder.quantity})`,
@@ -703,25 +716,17 @@ const App: React.FC = () => {
             'ملاحظات': newOrder.notes || 'لا يوجد',
         };
 
-        try {
-            const response = await fetch(FORMSPREE_ENDPOINT, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify(emailData),
-            });
+        const response = await fetch(FORMSPREE_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(emailData),
+        });
 
-            if (!response.ok) {
-                 // Even if email fails, the order is saved. So we don't throw an error to the user.
-                 console.error('Formspree notification failed, but order was saved locally.');
-            }
-             alert('شكراً لك! تم استلام طلبك بنجاح وسيتم التواصل معك قريباً.');
-             setOrderModalOpen(false);
-
-        } catch (error) {
-            console.error('Error sending Formspree notification:', error);
-            // Show success message anyway because the order is saved.
-            alert('شكراً لك! تم استلام طلبك بنجاح. (حدث خطأ في إرسال الإشعار)');
-            setOrderModalOpen(false);
+        if (!response.ok) {
+            // Formspree often returns error details in the JSON body
+            const errorData = await response.json().catch(() => ({})); // Catch if body is not JSON
+            const errorMessage = errorData.errors?.map((e: any) => e.message).join(', ') || 'فشل إرسال الطلب إلى الخادم. الرجاء المحاولة مرة أخرى.';
+            throw new Error(errorMessage);
         }
     };
 
