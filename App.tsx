@@ -1,37 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReCAPTCHA from 'react-google-recaptcha';
 import { Product, ProductCategory, Order, DeliveryFee, Wilaya, PaymentMethod, OrderStatus } from './types';
 import { ALGERIAN_WILAYAS, MOCK_PRODUCTS } from './constants';
-// Note: You need to create firebase.ts and add your Firebase config
-// import { db, auth } from './firebase'; 
-// import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, query, orderBy } from "firebase/firestore";
-// import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, User } from "firebase/auth";
-
-
-// ====================================================================
-// ========================== MOCK / PLACEHOLDER ======================
-// ====================================================================
-// This is a placeholder for Firebase functionality.
-// To make the app fully functional, you need to set up a Firebase project
-// and replace these mock functions with actual Firebase calls.
-
-const db = {}; // Placeholder
-const auth = {}; // Placeholder
-
-const useFirestoreCollection = <T,>(collectionName: string, initialData: T[]) => {
-    const [data, setData] = useLocalStorage<T[]>(collectionName, initialData);
-    return { data, loading: false, error: null };
-};
-
-const useAuth = () => {
-    const [user, setUser] = useLocalStorage<boolean>('user', false);
-    const login = (email: string, pass: string) => new Promise<void>(res => { setUser(true); res(); });
-    const logout = () => new Promise<void>(res => { setUser(false); res(); });
-    const signup = (email: string, pass: string) => new Promise<void>(res => { setUser(true); res(); });
-    return { user, login, logout, signup };
-}
-
-// END OF MOCK
-// ====================================================================
+import { db, auth } from './firebase'; 
+import { collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, serverTimestamp, getDocs, writeBatch, query, orderBy } from "firebase/firestore";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, User } from "firebase/auth";
 
 
 // Helper function to convert a file to a Base64 string
@@ -44,31 +17,6 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-
-// Custom hook for using localStorage
-function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
-
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return [storedValue, setValue];
-}
 
 // ====================================================================
 // ========================== PUBLIC COMPONENTS =======================
@@ -124,10 +72,15 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
     const [quantity, setQuantity] = useState(1);
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.OnDelivery);
     const [notes, setNotes] = useState('');
+    const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
     const [deliveryFee, setDeliveryFee] = useState(deliveryFees.find(df => df.wilayaId === ALGERIAN_WILAYAS[0].id)?.fee ?? 0);
     const [submissionState, setSubmissionState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
+    const recaptchaRef = useRef<ReCAPTCHA>(null);
+    
+    // ** مهم: استبدل هذا المفتاح بالمفتاح الخاص بك من Google reCAPTCHA **
+    const RECAPTCHA_SITE_KEY = "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"; // Example Key, REPLACE IT
 
     const handleWilayaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedWilayaId = parseInt(e.target.value);
@@ -142,6 +95,10 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
         e.preventDefault();
         if (quantity < 1) {
             setError("الكمية يجب أن تكون 1 على الأقل.");
+            return;
+        }
+        if (!recaptchaToken) {
+            setError("يرجى التأكيد أنك لست روبوت.");
             return;
         }
         setSubmissionState('submitting');
@@ -169,6 +126,8 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
         } catch (err: any) {
             setError(err.message || 'فشل إرسال الطلب. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.');
             setSubmissionState('error');
+            recaptchaRef.current?.reset();
+            setRecaptchaToken(null);
         }
     };
 
@@ -193,13 +152,6 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
                         </div>
                         
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {error && (
-                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                                    <strong className="font-bold">خطأ! </strong>
-                                    <span className="block sm:inline ml-2">{error}</span>
-                                </div>
-                            )}
-
                             <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">معلومات الزبون</h3>
                             <input type="text" placeholder="الاسم الكامل" value={customerName} onChange={e => setCustomerName(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
                             <input type="tel" placeholder="رقم الهاتف" value={phone} onChange={e => setPhone(e.target.value)} required className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
@@ -230,6 +182,21 @@ const OrderModal: React.FC<{ product: Product; deliveryFees: DeliveryFee[]; onCl
                             </div>
 
                             <textarea placeholder="ملاحظات (اختياري)" value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                            
+                            <div className="flex justify-center my-4">
+                              <ReCAPTCHA
+                                ref={recaptchaRef}
+                                sitekey={RECAPTCHA_SITE_KEY}
+                                onChange={(token) => setRecaptchaToken(token)}
+                                onExpired={() => setRecaptchaToken(null)}
+                              />
+                            </div>
+
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative text-center" role="alert">
+                                    <span className="block sm:inline">{error}</span>
+                                </div>
+                            )}
 
                             <div className="bg-gray-50 border border-gray-200 p-4 rounded-md mt-6 text-center space-y-1">
                                 <p className="text-md">سعر المنتج: <span className="font-bold">{(product.price * quantity).toLocaleString()} د.ج</span></p>
@@ -376,11 +343,12 @@ const AdminLogin: React.FC<{ onLogin: (email: string, pass: string) => Promise<v
 };
 
 
-const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<React.SetStateAction<Product[]>>}> = ({products, setProducts}) => {
+const AdminProducts: React.FC<{products: Product[], onSave: (product: Omit<Product, 'id'> & {id: string | null}) => Promise<void>, onDelete: (id: string) => Promise<void>}> = ({products, onSave, onDelete}) => {
     const initialFormState: Omit<Product, 'id'> & {id: string | null} = {id: null, name: '', description: '', price: 0, category: ProductCategory.Other, images: [], videoUrl: ''};
     const [form, setForm] = useState(initialFormState);
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     const [videoPreview, setVideoPreview] = useState<string | undefined>('');
+    const [isSaving, setIsSaving] = useState(false);
     
     const imageInputRef = useRef<HTMLInputElement>(null);
     const videoInputRef = useRef<HTMLInputElement>(null);
@@ -423,23 +391,31 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
         alert("الرجاء رفع صورة واحدة على الأقل للمنتج.");
         return;
       }
-
-      if (form.id) { // Editing
-        setProducts(products.map(p => p.id === form.id ? { ...form, id: form.id } as Product : p));
-      } else { // Adding
-        setProducts([...products, { ...form, id: new Date().getTime().toString() } as Product]);
+      setIsSaving(true);
+      try {
+        await onSave(form);
+        resetForm();
+      } catch (error) {
+        console.error("Failed to save product:", error);
+        alert("فشل حفظ المنتج.");
+      } finally {
+        setIsSaving(false);
       }
-      resetForm();
     }
     
     const handleEdit = (product: Product) => {
       setForm(product);
-      window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to form
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
       if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
-        setProducts(products.filter(p => p.id !== id));
+        try {
+            await onDelete(id);
+        } catch (error) {
+            console.error("Failed to delete product:", error);
+            alert("فشل حذف المنتج.");
+        }
       }
     };
     
@@ -489,7 +465,7 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
                 </div>
 
                 <div className="flex space-x-3 rtl:space-x-reverse pt-2">
-                  <button type="submit" className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm">{isEditing ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>
+                  <button type="submit" disabled={isSaving} className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">{isSaving ? 'جاري الحفظ...' : isEditing ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>
                   <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-800 font-semibold px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">{isEditing ? 'إلغاء التعديل' : 'مسح الحقول'}</button>
                 </div>
             </form>
@@ -526,19 +502,39 @@ const AdminProducts: React.FC<{products: Product[], setProducts: React.Dispatch<
     </div>
 }
 
-const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: React.Dispatch<React.SetStateAction<DeliveryFee[]>>}> = ({deliveryFees, setDeliveryFees}) => {
+const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], onSave: (fees: DeliveryFee[]) => Promise<void>}> = ({deliveryFees, onSave}) => {
+    const [localFees, setLocalFees] = useState<DeliveryFee[]>(deliveryFees);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        setLocalFees(deliveryFees);
+    }, [deliveryFees]);
+
     const handleFeeChange = (wilayaId: number, fee: number) => {
-        const newFees = deliveryFees.map(df => df.wilayaId === wilayaId ? {...df, fee: isNaN(fee) ? 0 : fee} : df);
-        // Add logic to save to Firestore here
-        setDeliveryFees(newFees);
+        const newFees = localFees.map(df => df.wilayaId === wilayaId ? {...df, fee: isNaN(fee) ? 0 : fee} : df);
+        setLocalFees(newFees);
     }
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave(localFees);
+            alert("تم حفظ أسعار التوصيل بنجاح!");
+        } catch (error) {
+            console.error("Failed to save delivery fees: ", error);
+            alert("فشل حفظ أسعار التوصيل.");
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
     return (
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-xl font-bold text-gray-800 mb-4">أسعار التوصيل</h3>
         <p className="text-gray-600 mb-6">قم بتحديد سعر التوصيل لكل ولاية. سيتم تطبيق السعر تلقائياً عند تقديم الزبون للطلب.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {ALGERIAN_WILAYAS.map(w => {
-                const fee = deliveryFees.find(df => df.wilayaId === w.id)?.fee ?? 0;
+                const fee = localFees.find(df => df.wilayaId === w.id)?.fee ?? 0;
                 return (
                     <div key={w.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
                         <label htmlFor={`fee-${w.id}`} className="font-medium text-gray-700">{w.name}</label>
@@ -549,6 +545,11 @@ const AdminDelivery: React.FC<{deliveryFees: DeliveryFee[], setDeliveryFees: Rea
                     </div>
                 )
             })}
+        </div>
+        <div className="mt-8 text-center">
+            <button onClick={handleSave} disabled={isSaving} className="bg-indigo-600 text-white font-semibold px-8 py-3 rounded-md hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">
+                {isSaving ? 'جاري الحفظ...' : 'حفظ جميع الأسعار'}
+            </button>
         </div>
       </div>
     )
@@ -595,7 +596,7 @@ const AdminOrders: React.FC<{ orders: Order[] }> = ({ orders }) => {
                                     </span>
                                 </td>
                                 <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-500">
-                                    {new Date(order.timestamp?.toDate?.() || Date.now()).toLocaleDateString('ar-DZ')}
+                                    {order.timestamp?.toDate ? new Date(order.timestamp.toDate()).toLocaleDateString('ar-DZ') : '...'}
                                 </td>
                             </tr>
                         )) : <tr><td colSpan={5} className="text-center text-gray-500 py-10">لا توجد أي طلبات حالياً.</td></tr>}
@@ -609,13 +610,14 @@ const AdminOrders: React.FC<{ orders: Order[] }> = ({ orders }) => {
 
 const AdminPage: React.FC<{ 
   onLogout: () => void;
-}> = ({ onLogout }) => {
+  products: Product[];
+  orders: Order[];
+  deliveryFees: DeliveryFee[];
+  onSaveProduct: (product: Omit<Product, 'id'> & {id: string | null}) => Promise<void>;
+  onDeleteProduct: (id: string) => Promise<void>;
+  onSaveDeliveryFees: (fees: DeliveryFee[]) => Promise<void>;
+}> = ({ onLogout, products, orders, deliveryFees, onSaveProduct, onDeleteProduct, onSaveDeliveryFees }) => {
     const [activeView, setActiveView] = useState('orders');
-    // Using mock/localstorage data for now
-    const [products, setProducts] = useLocalStorage<Product[]>('products_db', MOCK_PRODUCTS.map(p => ({...p, id: p.id.toString() })));
-    const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees_db', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
-    const [orders, setOrders] = useLocalStorage<Order[]>('orders_db', []);
-
 
     const menuItems = [
       { id: 'orders', label: 'إدارة الطلبات', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>},
@@ -645,8 +647,8 @@ const AdminPage: React.FC<{
 
             <main className="flex-1 p-6 md:p-8 overflow-y-auto">
                 {activeView === 'orders' && <AdminOrders orders={orders} />}
-                {activeView === 'products' && <AdminProducts products={products} setProducts={setProducts} />}
-                {activeView === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} setDeliveryFees={setDeliveryFees} />}
+                {activeView === 'products' && <AdminProducts products={products} onSave={onSaveProduct} onDelete={onDeleteProduct} />}
+                {activeView === 'delivery' && <AdminDelivery deliveryFees={deliveryFees} onSave={onSaveDeliveryFees} />}
             </main>
         </div>
     );
@@ -658,14 +660,12 @@ const AdminPage: React.FC<{
 // ====================================================================
 
 const App: React.FC = () => {
-    // Using LocalStorage as a mock database
-    const [products, setProducts] = useLocalStorage<Product[]>('products_db', MOCK_PRODUCTS.map(p => ({...p, id: p.id.toString() })));
-    const [deliveryFees, setDeliveryFees] = useLocalStorage<DeliveryFee[]>('delivery_fees_db', ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 500 })));
-    const [orders, setOrders] = useLocalStorage<Order[]>('orders_db', []);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [deliveryFees, setDeliveryFees] = useState<DeliveryFee[]>(ALGERIAN_WILAYAS.map(w => ({ wilayaId: w.id, fee: 0 })));
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
     
-    // Auth State
-    const { user: isAdminAuthenticated, login, logout } = useAuth();
-
     // Routing State
     const [route, setRoute] = useState(window.location.hash);
 
@@ -673,9 +673,53 @@ const App: React.FC = () => {
     const [isOrderModalOpen, setOrderModalOpen] = useState(false);
     const [productToOrder, setProductToOrder] = useState<Product | null>(null);
     
-    // Formspree - Hardcoded endpoint for reliability
     const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xrbrqwpk';
 
+    // Auth listener
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Firestore listeners
+    useEffect(() => {
+        // Products listener
+        const productsQuery = query(collection(db, "products"));
+        const unsubProducts = onSnapshot(productsQuery, (querySnapshot) => {
+            const productsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+            setProducts(productsData);
+        });
+
+        // Delivery Fees listener
+        const feesDocRef = doc(db, "config", "deliveryFees");
+        const unsubFees = onSnapshot(feesDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const feesData = docSnap.data().fees as DeliveryFee[];
+                setDeliveryFees(feesData);
+            }
+        });
+
+        // Orders listener (only if admin is logged in)
+        let unsubOrders = () => {};
+        if (user) {
+            const ordersQuery = query(collection(db, "orders"), orderBy("timestamp", "desc"));
+            unsubOrders = onSnapshot(ordersQuery, (querySnapshot) => {
+                const ordersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+                setOrders(ordersData);
+            });
+        }
+
+        return () => {
+            unsubProducts();
+            unsubFees();
+            unsubOrders();
+        };
+    }, [user]);
+    
+    // Routing effect
     useEffect(() => {
         const handleHashChange = () => {
         setRoute(window.location.hash);
@@ -685,35 +729,49 @@ const App: React.FC = () => {
         return () => window.removeEventListener('hashchange', handleHashChange);
     }, []);
 
+    const handleLogin = (email: string, pass: string) => signInWithEmailAndPassword(auth, email, pass);
+    const handleLogout = () => signOut(auth);
+
+    const handleSaveProduct = async (productData: Omit<Product, 'id'> & {id: string | null}) => {
+        if (productData.id) { // Editing existing product
+            const { id, ...dataToSave } = productData;
+            await setDoc(doc(db, "products", id), dataToSave);
+        } else { // Adding new product
+            const { id, ...dataToSave } = productData;
+            await addDoc(collection(db, "products"), dataToSave);
+        }
+    }
+    const handleDeleteProduct = (id: string) => deleteDoc(doc(db, "products", id));
+    
+    const handleSaveDeliveryFees = (fees: DeliveryFee[]) => setDoc(doc(db, "config", "deliveryFees"), { fees });
+
+
     const handleOrderNow = (product: Product) => {
         setProductToOrder(product);
         setOrderModalOpen(true);
     };
 
     const handlePlaceOrder = async (orderData: Omit<Order, 'id' | 'timestamp' | 'status'>) => {
-        const newOrder: Order = {
+        // 1. Save order to Firestore
+        const newOrder: Omit<Order, 'id'> = {
             ...orderData,
-            id: new Date().getTime().toString(),
-            timestamp: new Date(),
+            timestamp: serverTimestamp(),
             status: OrderStatus.New,
         };
+        await addDoc(collection(db, "orders"), newOrder);
         
-        // IMPORTANT: The order is only real if the notification is sent successfully.
-        // Saving to localStorage here is only for the admin's own testing purposes.
-        // The definitive record of orders is the admin's email inbox via Formspree.
-        setOrders(prevOrders => [...prevOrders, newOrder]);
-        
+        // 2. Send email notification via Formspree
         const emailData = {
             '-- تفاصيل الطلب --': '',
-            'المنتج': `${newOrder.productName} (x${newOrder.quantity})`,
-            'السعر الإجمالي': `${newOrder.totalPrice.toLocaleString()} د.ج`,
+            'المنتج': `${orderData.productName} (x${orderData.quantity})`,
+            'السعر الإجمالي': `${orderData.totalPrice.toLocaleString()} د.ج`,
             '-- معلومات الزبون --': '',
-            'الاسم الكامل': newOrder.customerName,
-            'رقم الهاتف': newOrder.phone,
-            'الولاية': newOrder.wilaya,
-            'العنوان': newOrder.address,
-            'طريقة الدفع': newOrder.paymentMethod,
-            'ملاحظات': newOrder.notes || 'لا يوجد',
+            'الاسم الكامل': orderData.customerName,
+            'رقم الهاتف': orderData.phone,
+            'الولاية': orderData.wilaya,
+            'العنوان': orderData.address,
+            'طريقة الدفع': orderData.paymentMethod,
+            'ملاحظات': orderData.notes || 'لا يوجد',
         };
 
         const response = await fetch(FORMSPREE_ENDPOINT, {
@@ -723,14 +781,16 @@ const App: React.FC = () => {
         });
 
         if (!response.ok) {
-            // Formspree often returns error details in the JSON body
-            const errorData = await response.json().catch(() => ({})); // Catch if body is not JSON
-            const errorMessage = errorData.errors?.map((e: any) => e.message).join(', ') || 'فشل إرسال الطلب إلى الخادم. الرجاء المحاولة مرة أخرى.';
-            throw new Error(errorMessage);
+            // Even if email fails, order is saved. Log the error.
+            console.error("Formspree notification failed:", await response.json().catch(()=>({})));
         }
     };
 
     const renderPage = () => {
+        if (loading) {
+            return <div className="text-center py-20 text-xl">جاري التحميل...</div>;
+        }
+
         const path = route.slice(1) || '/';
 
         if (path.startsWith('/product/')) {
@@ -740,7 +800,15 @@ const App: React.FC = () => {
         }
 
         if (path === '/admin') {
-            return isAdminAuthenticated ? <AdminPage onLogout={logout} /> : <AdminLogin onLogin={login} />;
+            return user ? <AdminPage 
+                            onLogout={handleLogout}
+                            products={products}
+                            orders={orders}
+                            deliveryFees={deliveryFees}
+                            onSaveProduct={handleSaveProduct}
+                            onDeleteProduct={handleDeleteProduct}
+                            onSaveDeliveryFees={handleSaveDeliveryFees}
+                          /> : <AdminLogin onLogin={handleLogin} />;
         }
         
         return <HomePage products={products} />;
